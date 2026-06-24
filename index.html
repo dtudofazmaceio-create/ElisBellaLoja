@@ -21,7 +21,7 @@
     <script type="module">
         // Firebase v9+ modular SDK
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
-        import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, signInAnonymously } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
+        import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, signInAnonymously, sendPasswordResetEmail, setPersistence, browserLocalPersistence, updatePassword, EmailAuthProvider, reauthenticateWithCredential } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
         import { getFirestore, doc, setDoc, getDoc, collection, getDocs, onSnapshot, deleteDoc, writeBatch } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
         
         // ================================================================
@@ -48,18 +48,29 @@
                 db = getFirestore(app);
                 window.__firebaseAuth = auth;
                 window.__firebaseDb = db;
-                window.__firebaseModules = { doc, setDoc, getDoc, collection, getDocs, onSnapshot, deleteDoc, writeBatch, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, signInAnonymously };
+                window.__firebaseModules = { doc, setDoc, getDoc, collection, getDocs, onSnapshot, deleteDoc, writeBatch, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, signInAnonymously, sendPasswordResetEmail, updatePassword, EmailAuthProvider, reauthenticateWithCredential };
                 window.__firebaseAtivo = true;
-                // Autenticação anônima: garante request.auth != null para as regras de segurança
-                // funcionarem em qualquer dispositivo, sem exigir login por e-mail no Firebase.
-                window.__firebaseAuthPronto = signInAnonymously(auth)
-                    .then(() => { console.log('[Firebase] Sessão anônima ativa'); return true; })
-                    .catch((err) => {
-                        console.warn('[Firebase] Auth anônima indisponível:', err.code || err.message);
-                        // Mesmo sem auth anônima, segue tentando (caso as regras estejam abertas)
-                        return false;
-                    });
-                console.log('[Firebase] Integração ativa');
+
+                // Persistência local: mantém o usuário logado ao reabrir o app/aba.
+                try { await setPersistence(auth, browserLocalPersistence); } catch(e) { console.warn('[Firebase] Persistência:', e.message); }
+
+                // App SECUNDÁRIO: usado para criar novos usuários SEM deslogar o admin.
+                // (createUserWithEmailAndPassword loga automaticamente o novo usuário;
+                //  fazendo isso num app separado, a sessão do admin fica intacta.)
+                window.__authCriarUsuario = async (email, senha) => {
+                    const secApp = initializeApp(firebaseConfig, 'secundario_' + Date.now());
+                    const secAuth = getAuth(secApp);
+                    try {
+                        const cred = await createUserWithEmailAndPassword(secAuth, email, senha);
+                        const uid = cred.user.uid;
+                        try { await signOut(secAuth); } catch(e) {}
+                        return uid;
+                    } finally {
+                        try { await secApp.delete?.(); } catch(e) {}
+                    }
+                };
+
+                console.log('[Firebase] Integração ativa (Auth e-mail/senha)');
             } catch(e) {
                 console.warn('[Firebase] Erro ao inicializar:', e.message);
                 window.__firebaseAtivo = false;
@@ -1398,7 +1409,8 @@
             </form>
             
             <div class="login-footer">
-                <p>Primeiro acesso? <a href="#" id="register-link">Cadastre-se aqui</a></p>
+                <p><a href="#" id="forgot-link">Esqueci minha senha</a></p>
+                <p class="mt-1">Primeiro acesso? <a href="#" id="register-link">Cadastre-se aqui</a></p>
                 <p class="mt-1"><small>Sistema desenvolvido para gestão de moda feminina</small></p>
             </div>
         </div>
@@ -2358,8 +2370,8 @@
                                 
                                 <div class="form-row">
                                     <div class="form-group">
-                                        <label for="usuario-email">E-mail</label>
-                                        <input type="email" id="usuario-email">
+                                        <label for="usuario-email">E-mail *</label>
+                                        <input type="email" id="usuario-email" required>
                                     </div>
                                     <div class="form-group">
                                         <label for="usuario-perfil">Perfil de Acesso *</label>
@@ -2372,7 +2384,7 @@
                                     </div>
                                 </div>
                                 
-                                <div class="form-row">
+                                <div class="form-row" id="usuario-senha-row">
                                     <div class="form-group">
                                         <label for="usuario-senha">Senha *</label>
                                         <input type="password" id="usuario-senha" required>
@@ -2380,6 +2392,17 @@
                                     <div class="form-group">
                                         <label for="usuario-confirmar-senha">Confirmar Senha *</label>
                                         <input type="password" id="usuario-confirmar-senha" required>
+                                    </div>
+                                </div>
+
+                                <div class="form-row hidden" id="usuario-reset-row">
+                                    <div class="form-group">
+                                        <p style="margin-bottom:.5rem;color:var(--cinza-escuro);font-size:.9rem;">
+                                            <i class="fas fa-info-circle"></i> A senha é gerenciada pelo próprio usuário. Para redefini-la, envie um link por e-mail:
+                                        </p>
+                                        <button type="button" class="btn btn-secondary" id="btn-reset-senha-usuario">
+                                            <i class="fas fa-envelope"></i> Enviar redefinição de senha por e-mail
+                                        </button>
                                     </div>
                                 </div>
                                 
@@ -2645,45 +2668,114 @@
 
             // Inicialização do sistema
             document.addEventListener('DOMContentLoaded', async function() {
-                // Aguardar Firebase e carregar dados compartilhados (inclui usuários)
-                // ANTES de decidir entre login e cadastro do primeiro usuário.
-                // Isso garante que um usuário criado em outro aparelho consiga entrar aqui.
-                if (window.__firebaseAtivo) {
-                    mostrarSplashCarregando(true);
-                    try {
-                        if (window.__firebaseAuthPronto) { await window.__firebaseAuthPronto; }
-                        await carregarDoFirebase();
-                        configurarListenerFirebase();
-                    } catch (e) {
-                        console.warn('[Firebase] Falha no carregamento inicial:', e.message);
-                    }
-                    mostrarSplashCarregando(false);
-                }
-
-                // Verificar se há usuários cadastrados
-                if (usuarios.length === 0) {
-                    // Mostrar modal de cadastro do primeiro usuário
-                    document.getElementById('register-modal').classList.add('active');
-                } else {
-                    // Mostrar tela de login
-                    mostrarTelaLogin();
-                }
-                
                 // Configurar data atual
                 atualizarDataHora();
                 setInterval(atualizarDataHora, 1000); // Atualizar a cada segundo
-                
+
                 document.getElementById('ano-atual').textContent = new Date().getFullYear();
-                
-                // Configurar eventos
+
+                // Configurar eventos (inclui o submit do login/registro)
                 configurarEventos();
-                
+
                 // Aplicar configurações
                 aplicarConfiguracoes();
 
                 // Configurar app mobile (manifest + modo standalone)
                 configurarAppMobile();
+
+                if (window.__firebaseAtivo) {
+                    // Autenticação real do Firebase controla sessão, dados e telas.
+                    mostrarSplashCarregando(true);
+                    iniciarAuthFirebase();
+                } else {
+                    // Modo local (sem Firebase): comportamento offline
+                    if (usuarios.length === 0) {
+                        document.getElementById('register-modal').classList.add('active');
+                    } else {
+                        mostrarTelaLogin();
+                    }
+                }
             });
+
+            // ============================================================
+            // FLUXO DE AUTENTICAÇÃO (Firebase Auth - e-mail/senha)
+            // ============================================================
+            let primeiroAcessoVerificado = false;
+
+            function sistemaAberto() {
+                const ms = document.getElementById('main-system');
+                return ms && ms.style.display === 'block';
+            }
+
+            function encontrarRegistroPorAuth(user) {
+                const email = (user.email || '').toLowerCase();
+                return usuarios.find(u => u.authUid === user.uid) ||
+                       (email ? usuarios.find(u => (u.email || '').toLowerCase() === email) : null);
+            }
+
+            async function iniciarAuthFirebase() {
+                const { onAuthStateChanged, signInAnonymously, signOut } = window.__firebaseModules;
+                const auth = window.__firebaseAuth;
+
+                onAuthStateChanged(auth, async (user) => {
+                    try {
+                        if (!user) {
+                            // Ninguém logado -> entra anônimo para conseguir ler o diretório
+                            // de usuários e os dados (e detectar o primeiro acesso).
+                            try {
+                                await signInAnonymously(auth);
+                            } catch (e) {
+                                console.warn('[Auth] anônimo indisponível:', e.code || e.message);
+                                mostrarSplashCarregando(false);
+                                mostrarTelaLogin();
+                            }
+                            return; // signInAnonymously dispara o listener novamente
+                        }
+
+                        if (user.isAnonymous) {
+                            // Fase pré-login: carrega dados e decide login x primeiro acesso
+                            await carregarDoFirebase();
+                            configurarListenerFirebase();
+                            mostrarSplashCarregando(false);
+                            if (!sistemaAberto()) {
+                                if (usuarios.length === 0 && !primeiroAcessoVerificado) {
+                                    primeiroAcessoVerificado = true;
+                                    document.getElementById('register-modal').classList.add('active');
+                                } else {
+                                    mostrarTelaLogin();
+                                }
+                            }
+                            return;
+                        }
+
+                        // ---- Usuário REAL autenticado ----
+                        await carregarDoFirebase();
+                        configurarListenerFirebase();
+                        const reg = encontrarRegistroPorAuth(user);
+                        if (!reg) {
+                            mostrarSplashCarregando(false);
+                            mostrarTelaLogin();
+                            mostrarMensagemLogin('Esta conta não tem acesso liberado. Contate o administrador.', 'error');
+                            await signOut(auth);
+                            return;
+                        }
+                        if (reg.ativo === false) {
+                            mostrarSplashCarregando(false);
+                            mostrarTelaLogin();
+                            mostrarMensagemLogin('Usuário inativo. Contate o administrador.', 'error');
+                            await signOut(auth);
+                            return;
+                        }
+                        if (!reg.authUid) { reg.authUid = user.uid; salvarDados(); }
+                        usuarioLogado = reg;
+                        mostrarSplashCarregando(false);
+                        mostrarSistemaPrincipal();
+                    } catch (e) {
+                        console.error('[Auth] erro no fluxo:', e);
+                        mostrarSplashCarregando(false);
+                    }
+                });
+            }
 
             // Splash simples enquanto carrega do Firebase no boot
             function mostrarSplashCarregando(mostrar) {
@@ -2768,6 +2860,21 @@
                     e.preventDefault();
                     document.getElementById('register-modal').classList.add('active');
                 });
+
+                // Esqueci minha senha (envia e-mail de redefinição)
+                const forgotLink = document.getElementById('forgot-link');
+                if (forgotLink) {
+                    forgotLink.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        enviarResetSenhaLogin();
+                    });
+                }
+
+                // Admin: enviar redefinição de senha por e-mail ao editar um usuário
+                const btnResetUsuario = document.getElementById('btn-reset-senha-usuario');
+                if (btnResetUsuario) {
+                    btnResetUsuario.addEventListener('click', enviarResetSenhaUsuario);
+                }
                 
                 // Eventos de registro
                 document.getElementById('register-form').addEventListener('submit', registrarPrimeiroUsuario);
@@ -3146,43 +3253,130 @@
 
             async function fazerLogin(e) {
                 e.preventDefault();
-                
-                const username = document.getElementById('username').value.trim();
+
+                const entrada = document.getElementById('username').value.trim();
                 const password = document.getElementById('password').value;
-                
-                if (!username || !password) {
+
+                if (!entrada || !password) {
                     mostrarMensagemLogin('Preencha todos os campos.', 'error');
                     return;
                 }
-                
-                const senhaHash = await hashSenha(password);
-                const usuario = usuarios.find(u => u.username === username && u.ativo && 
-                    (u.senhaHash === senhaHash || u.senha === password));
-                
-                if (!usuario) {
-                    mostrarMensagemLogin('Usuário ou senha inválidos.', 'error');
+
+                // ---------- Modo LOCAL (sem Firebase) ----------
+                if (!window.__firebaseAtivo) {
+                    const senhaHash = await hashSenha(password);
+                    const usuario = usuarios.find(u =>
+                        (u.username === entrada || (u.email || '').toLowerCase() === entrada.toLowerCase()) &&
+                        u.ativo && (u.senhaHash === senhaHash || u.senha === password));
+                    if (!usuario) {
+                        mostrarMensagemLogin('Usuário ou senha inválidos.', 'error');
+                        return;
+                    }
+                    if (usuario.senha && !usuario.senhaHash) {
+                        usuario.senhaHash = senhaHash; delete usuario.senha; salvarDados();
+                    }
+                    usuarioLogado = usuario;
+                    sessionStorage.setItem('eb_session', btoa(JSON.stringify({ uid: usuario.id, ts: Date.now() })));
+                    document.getElementById('login-form').reset();
+                    mostrarSistemaPrincipal();
                     return;
                 }
-                
-                // Migrar senha legada para hash automaticamente
-                if (usuario.senha && !usuario.senhaHash) {
-                    const idx = usuarios.findIndex(u => u.id === usuario.id);
-                    usuarios[idx].senhaHash = senhaHash;
-                    delete usuarios[idx].senha;
-                    salvarDados();
+
+                // ---------- Modo FIREBASE AUTH ----------
+                const { signInWithEmailAndPassword } = window.__firebaseModules;
+                const auth = window.__firebaseAuth;
+
+                // Permite entrar com nome de usuário: resolve o e-mail no diretório
+                let email = entrada;
+                if (!entrada.includes('@')) {
+                    const u = usuarios.find(x => x.username && x.username.toLowerCase() === entrada.toLowerCase());
+                    if (u && u.email) email = u.email;
                 }
-                
-                usuarioLogado = usuario;
-                sessionStorage.setItem('eb_session', btoa(JSON.stringify({uid: usuario.id, ts: Date.now()})));
-                mostrarMensagemLogin('Login realizado com sucesso!', 'success');
-                document.getElementById('login-form').reset();
-                setTimeout(() => { mostrarSistemaPrincipal(); }, 500);
+
+                const btn = document.querySelector('#login-form .login-btn');
+                if (btn) btn.disabled = true;
+                mostrarMensagemLogin('Entrando...', 'success');
+
+                try {
+                    await signInWithEmailAndPassword(auth, email, password);
+                    document.getElementById('login-form').reset();
+                    // onAuthStateChanged abre o sistema
+                } catch (err) {
+                    const code = err.code || '';
+                    if (code === 'auth/user-not-found' || code === 'auth/invalid-credential' || code === 'auth/invalid-login-credentials') {
+                        // Pode ser um usuário ANTIGO ainda não migrado para o Auth
+                        const migrou = await tentarMigrarUsuarioLegado(email, password);
+                        if (migrou) { document.getElementById('login-form').reset(); return; }
+                        mostrarMensagemLogin('E-mail/usuário ou senha inválidos.', 'error');
+                    } else if (code === 'auth/wrong-password') {
+                        mostrarMensagemLogin('Senha incorreta.', 'error');
+                    } else if (code === 'auth/user-disabled') {
+                        mostrarMensagemLogin('Esta conta foi desativada.', 'error');
+                    } else if (code === 'auth/too-many-requests') {
+                        mostrarMensagemLogin('Muitas tentativas. Aguarde alguns minutos.', 'error');
+                    } else if (code === 'auth/network-request-failed') {
+                        mostrarMensagemLogin('Sem conexão com a internet.', 'error');
+                    } else {
+                        mostrarMensagemLogin('Não foi possível entrar: ' + (err.message || code), 'error');
+                    }
+                } finally {
+                    if (btn) btn.disabled = false;
+                }
+            }
+
+            // Migra um usuário criado no modelo antigo (senha em hash) para o Firebase Auth,
+            // na primeira vez que ele faz login com a senha correta.
+            async function tentarMigrarUsuarioLegado(email, password) {
+                try {
+                    const senhaHash = await hashSenha(password);
+                    const reg = usuarios.find(u =>
+                        (u.email || '').toLowerCase() === (email || '').toLowerCase() &&
+                        u.ativo !== false &&
+                        (u.senhaHash === senhaHash || u.senha === password));
+                    if (!reg || !reg.email) return false;
+
+                    const uid = await window.__authCriarUsuario(reg.email, password);
+                    reg.authUid = uid;
+                    delete reg.senhaHash;
+                    delete reg.senha;
+                    salvarDados();
+
+                    const { signInWithEmailAndPassword } = window.__firebaseModules;
+                    await signInWithEmailAndPassword(window.__firebaseAuth, reg.email, password);
+                    return true;
+                } catch (e) {
+                    if ((e.code || '') === 'auth/email-already-in-use') return false;
+                    console.warn('[Migração] falhou:', e.message);
+                    return false;
+                }
+            }
+
+            // Envia e-mail de redefinição de senha (login: "Esqueci minha senha")
+            async function enviarResetSenhaLogin() {
+                if (!window.__firebaseAtivo) {
+                    mostrarMensagemLogin('Recuperação por e-mail disponível apenas com Firebase ativo.', 'error');
+                    return;
+                }
+                const entrada = document.getElementById('username').value.trim();
+                let email = entrada;
+                if (!entrada.includes('@')) {
+                    const u = usuarios.find(x => x.username && x.username.toLowerCase() === entrada.toLowerCase());
+                    if (u && u.email) email = u.email;
+                }
+                if (!email || !email.includes('@')) {
+                    mostrarMensagemLogin('Digite seu e-mail no campo acima e clique novamente.', 'error');
+                    return;
+                }
+                try {
+                    const { sendPasswordResetEmail } = window.__firebaseModules;
+                    await sendPasswordResetEmail(window.__firebaseAuth, email);
+                    mostrarMensagemLogin('Enviamos um link de redefinição para ' + email + '.', 'success');
+                } catch (e) {
+                    mostrarMensagemLogin('Não foi possível enviar: ' + (e.message || e.code), 'error');
+                }
             }
 
             function fazerLogout() {
-                usuarioLogado = null;
-                sessionStorage.removeItem('eb_session');
-                mostrarTelaLogin();
                 pararInatividadeTimer();
                 if (countdownInatividade) {
                     clearInterval(countdownInatividade);
@@ -3193,58 +3387,99 @@
                     if (g) { try { g.destroy(); } catch(e) {} }
                 });
                 graficoCategoria = graficoEvolucao = graficoPagamento = graficoTopProdutos = null;
+
+                usuarioLogado = null;
+                sessionStorage.removeItem('eb_session');
+
+                if (window.__firebaseAtivo) {
+                    // signOut dispara onAuthStateChanged -> volta para tela de login
+                    const { signOut } = window.__firebaseModules;
+                    signOut(window.__firebaseAuth).catch(e => console.warn('[Auth] signOut:', e.message));
+                    mostrarTelaLogin();
+                } else {
+                    mostrarTelaLogin();
+                }
             }
 
             async function registrarPrimeiroUsuario(e) {
                 e.preventDefault();
-                
+
                 const nome = document.getElementById('register-nome').value.trim();
                 const username = document.getElementById('register-username').value.trim();
                 const email = document.getElementById('register-email').value.trim();
                 const senha = document.getElementById('register-senha').value;
                 const confirmarSenha = document.getElementById('register-confirmar-senha').value;
-                
-                // Validar campos
+
                 if (!nome || !username || !email || !senha || !confirmarSenha) {
                     mostrarMensagemRegistro('Preencha todos os campos.', 'error');
                     return;
                 }
-                
                 if (senha !== confirmarSenha) {
                     mostrarMensagemRegistro('As senhas não coincidem.', 'error');
                     return;
                 }
-                
-                // Verificar se o usuário já existe
                 if (usuarios.some(u => u.username === username)) {
                     mostrarMensagemRegistro('Este nome de usuário já está em uso.', 'error');
                     return;
                 }
-                
-                // Criar primeiro usuário (admin) com senha hasheada
-                const senhaHashReg = await hashSenha(senha);
-                const novoUsuario = {
-                    id: 1,
-                    nome,
-                    username,
-                    email,
-                    senhaHash: senhaHashReg,
-                    perfil: 'admin',
-                    ativo: true,
-                    dataCriacao: new Date().toISOString()
-                };
-                
-                usuarios.push(novoUsuario);
-                salvarDados();
-                
-                usuarioLogado = novoUsuario;
-                sessionStorage.setItem('eb_session', btoa(JSON.stringify({uid: novoUsuario.id, ts: Date.now()})));
-                
-                // Fechar modal e mostrar sistema
-                document.getElementById('register-modal').classList.remove('active');
-                mostrarSistemaPrincipal();
-                
-                mostrarMensagem('Primeiro usuário cadastrado com sucesso!', 'success');
+
+                // ---------- Modo LOCAL (sem Firebase) ----------
+                if (!window.__firebaseAtivo) {
+                    const senhaHashReg = await hashSenha(senha);
+                    const novoUsuario = {
+                        id: 1, nome, username, email, senhaHash: senhaHashReg,
+                        perfil: 'admin', ativo: true, dataCriacao: new Date().toISOString()
+                    };
+                    usuarios.push(novoUsuario);
+                    proximoIdUsuario = 2;
+                    salvarDados();
+                    usuarioLogado = novoUsuario;
+                    sessionStorage.setItem('eb_session', btoa(JSON.stringify({ uid: novoUsuario.id, ts: Date.now() })));
+                    document.getElementById('register-modal').classList.remove('active');
+                    mostrarSistemaPrincipal();
+                    mostrarMensagem('Primeiro usuário cadastrado com sucesso!', 'success');
+                    return;
+                }
+
+                // ---------- Modo FIREBASE AUTH ----------
+                if (senha.length < 6) {
+                    mostrarMensagemRegistro('A senha deve ter pelo menos 6 caracteres.', 'error');
+                    return;
+                }
+                const btn = document.querySelector('#register-form button[type="submit"]');
+                if (btn) btn.disabled = true;
+                mostrarMensagemRegistro('Criando administrador...', 'success');
+                try {
+                    const uid = await window.__authCriarUsuario(email, senha);
+                    const novoUsuario = {
+                        id: 1, nome, username, email, authUid: uid,
+                        perfil: 'admin', ativo: true, dataCriacao: new Date().toISOString()
+                    };
+                    usuarios.push(novoUsuario);
+                    proximoIdUsuario = 2;
+                    salvarDados();
+
+                    document.getElementById('register-modal').classList.remove('active');
+                    document.getElementById('register-form').reset();
+
+                    // Entra de verdade (troca a sessão anônima pela do admin)
+                    const { signInWithEmailAndPassword } = window.__firebaseModules;
+                    await signInWithEmailAndPassword(window.__firebaseAuth, email, senha);
+                    // onAuthStateChanged abre o sistema
+                } catch (err) {
+                    const code = err.code || '';
+                    if (code === 'auth/email-already-in-use') {
+                        mostrarMensagemRegistro('Este e-mail já está cadastrado. Use a tela de login.', 'error');
+                    } else if (code === 'auth/weak-password') {
+                        mostrarMensagemRegistro('Senha muito fraca (mínimo 6 caracteres).', 'error');
+                    } else if (code === 'auth/invalid-email') {
+                        mostrarMensagemRegistro('E-mail inválido.', 'error');
+                    } else {
+                        mostrarMensagemRegistro('Erro ao cadastrar: ' + (err.message || code), 'error');
+                    }
+                } finally {
+                    if (btn) btn.disabled = false;
+                }
             }
 
             // Funções de Inatividade
@@ -6430,12 +6665,58 @@
                 });
             }
             
+            // Ajusta o formulário de usuário conforme criação x edição e modo Firebase
+            function ajustarFormUsuario(ehEdicao, migrado) {
+                const senhaRow = document.getElementById('usuario-senha-row');
+                const resetRow = document.getElementById('usuario-reset-row');
+                const inputSenha = document.getElementById('usuario-senha');
+                const inputConfirma = document.getElementById('usuario-confirmar-senha');
+                const inputEmail = document.getElementById('usuario-email');
+                const firebase = window.__firebaseAtivo;
+
+                if (ehEdicao && firebase && migrado) {
+                    // Usuário já no Auth: senha/e-mail são gerenciados pelo Auth
+                    senhaRow.classList.add('hidden');
+                    resetRow.classList.remove('hidden');
+                    inputSenha.required = false;
+                    inputConfirma.required = false;
+                    inputEmail.disabled = true;
+                    inputEmail.title = 'O e-mail de acesso não pode ser alterado aqui';
+                } else if (ehEdicao && firebase && !migrado) {
+                    // Usuário ANTIGO ainda sem acesso no Auth: permite informar e-mail + senha
+                    // para liberar o acesso multi-dispositivo.
+                    senhaRow.classList.remove('hidden');
+                    resetRow.classList.add('hidden');
+                    inputSenha.required = false;
+                    inputConfirma.required = false;
+                    inputEmail.disabled = false;
+                    inputEmail.title = 'Informe e-mail e senha para liberar o acesso deste usuário';
+                } else if (ehEdicao && !firebase) {
+                    // Edição local: senha opcional
+                    senhaRow.classList.remove('hidden');
+                    resetRow.classList.add('hidden');
+                    inputSenha.required = false;
+                    inputConfirma.required = false;
+                    inputEmail.disabled = false;
+                } else {
+                    // Novo usuário: senha obrigatória
+                    senhaRow.classList.remove('hidden');
+                    resetRow.classList.add('hidden');
+                    inputSenha.required = true;
+                    inputConfirma.required = true;
+                    inputEmail.disabled = false;
+                    inputEmail.title = '';
+                }
+            }
+
             function mostrarFormUsuario() {
                 document.getElementById('form-usuario').classList.remove('hidden');
                 document.getElementById('form-usuario-titulo').textContent = 'Cadastrar Novo Usuário';
                 document.getElementById('usuario-id').value = '';
                 document.getElementById('usuario-form').reset();
+                document.getElementById('usuario-email').disabled = false;
                 modoEdicaoUsuario = false;
+                ajustarFormUsuario(false);
                 
                 // Rolar para o formulário
                 document.getElementById('form-usuario').scrollIntoView({ behavior: 'smooth' });
@@ -6462,6 +6743,7 @@
                 document.getElementById('usuario-confirmar-senha').value = '';
                 
                 modoEdicaoUsuario = true;
+                ajustarFormUsuario(true, !!usuario.authUid);
                 
                 // Rolar para o formulário
                 document.getElementById('form-usuario').scrollIntoView({ behavior: 'smooth' });
@@ -6475,75 +6757,160 @@
                 const perfil = document.getElementById('usuario-perfil').value;
                 const senha = document.getElementById('usuario-senha').value;
                 const confirmarSenha = document.getElementById('usuario-confirmar-senha').value;
-                
+
                 if (!nome || !username || !perfil) {
                     mostrarMensagem('Por favor, preencha todos os campos obrigatórios.', 'error');
                     return;
                 }
-                
-                // Verificar se é um novo usuário ou se a senha está sendo alterada
-                if ((!id && !senha) || (id && senha && senha !== confirmarSenha)) {
-                    mostrarMensagem('As senhas não coincidem.', 'error');
+
+                const ehEdicao = modoEdicaoUsuario && id;
+
+                // ===================== EDIÇÃO =====================
+                if (ehEdicao) {
+                    const index = usuarios.findIndex(u => u.id === parseInt(id));
+                    if (index === -1) return;
+                    const usuarioAtual = usuarios[index];
+
+                    // No modo Firebase, e-mail e senha são gerenciados pelo Auth e não
+                    // podem ser alterados pelo admin a partir do navegador (somente nome,
+                    // usuário e perfil). A senha é redefinida por e-mail.
+                    if (window.__firebaseAtivo) {
+                        if (usuarioAtual.authUid) {
+                            // Já está no Auth: só dados de perfil
+                            usuarios[index] = { ...usuarioAtual, nome, username, perfil };
+                        } else {
+                            // Usuário ANTIGO sem acesso: se informou e-mail + senha, libera no Auth
+                            if (email && senha) {
+                                if (senha.length < 6) { mostrarMensagem('A senha deve ter pelo menos 6 caracteres.', 'error'); return; }
+                                if (senha !== confirmarSenha) { mostrarMensagem('As senhas não coincidem.', 'error'); return; }
+                                if (usuarios.some(u => u.id !== usuarioAtual.id && (u.email || '').toLowerCase() === email.toLowerCase())) {
+                                    mostrarMensagem('Este e-mail já está em uso por outro usuário.', 'error'); return;
+                                }
+                                const btnE = document.getElementById('btn-salvar-usuario');
+                                if (btnE) btnE.disabled = true;
+                                try {
+                                    const uid = await window.__authCriarUsuario(email, senha);
+                                    const atualizado = { ...usuarioAtual, nome, username, email, perfil, authUid: uid };
+                                    delete atualizado.senhaHash; delete atualizado.senha;
+                                    usuarios[index] = atualizado;
+                                    mostrarMensagem('Acesso liberado! O usuário já pode entrar de qualquer aparelho.', 'success');
+                                } catch (err) {
+                                    const c = err.code || '';
+                                    mostrarMensagem(c === 'auth/email-already-in-use' ? 'Este e-mail já possui conta.' :
+                                        'Erro ao liberar acesso: ' + (err.message || c), 'error');
+                                    if (btnE) btnE.disabled = false;
+                                    return;
+                                }
+                                if (btnE) btnE.disabled = false;
+                            } else {
+                                // Sem e-mail/senha: atualiza apenas o cadastro local
+                                usuarios[index] = { ...usuarioAtual, nome, username, email: email || usuarioAtual.email, perfil };
+                            }
+                        }
+                    } else {
+                        let atualizado = { ...usuarioAtual, nome, username, email, perfil };
+                        if (senha) {
+                            if (senha !== confirmarSenha) {
+                                mostrarMensagem('As senhas não coincidem.', 'error');
+                                return;
+                            }
+                            atualizado.senhaHash = await hashSenha(senha);
+                            delete atualizado.senha;
+                        }
+                        usuarios[index] = atualizado;
+                    }
+
+                    carregarUsuarios();
+                    document.getElementById('form-usuario').classList.add('hidden');
+                    document.getElementById('usuario-form').reset();
+                    salvarDados();
+                    mostrarMensagem('Usuário atualizado com sucesso!', 'success');
                     return;
                 }
-                
-                let novoUsuario;
-                
-                if (modoEdicaoUsuario && id) {
-                    // Atualizar usuário existente
-                    const index = usuarios.findIndex(u => u.id === parseInt(id));
-                    if (index !== -1) {
-                        const usuarioAtual = usuarios[index];
-                        novoUsuario = {
-                            ...usuarioAtual,
-                            nome,
-                            username,
-                            email,
-                            perfil
-                        };
-                        
-                        // Atualizar senha se fornecida (com hash)
-                        if (senha) {
-                            const senhaHashEdit = await hashSenha(senha);
-                            novoUsuario.senhaHash = senhaHashEdit;
-                            delete novoUsuario.senha;
-                        }
-                        
-                        usuarios[index] = novoUsuario;
-                    }
-                    mostrarMensagem('Usuário atualizado com sucesso!', 'success');
-                } else {
-                    // Verificar se o usuário já existe
-                    if (usuarios.some(u => u.username === username)) {
-                        mostrarMensagem('Este nome de usuário já está em uso.', 'error');
-                        return;
-                    }
-                    
-                    // Criar novo usuário com hash
-                    const senhaHashNovo = await hashSenha(senha);
-                    novoUsuario = {
-                        id: proximoIdUsuario++,
-                        nome,
-                        username,
-                        email,
-                        senhaHash: senhaHashNovo,
-                        perfil,
-                        ativo: true,
-                        dataCriacao: new Date().toISOString()
-                    };
-                    usuarios.push(novoUsuario);
-                    mostrarMensagem('Usuário cadastrado com sucesso!', 'success');
+
+                // ===================== NOVO USUÁRIO =====================
+                if (usuarios.some(u => u.username.toLowerCase() === username.toLowerCase())) {
+                    mostrarMensagem('Este nome de usuário já está em uso.', 'error');
+                    return;
                 }
-                
-                // Atualizar a tabela
-                carregarUsuarios();
-                
-                // Esconder o formulário
-                document.getElementById('form-usuario').classList.add('hidden');
-                document.getElementById('usuario-form').reset();
-                
-                // Salvar dados
-                salvarDados();
+
+                // ---------- Modo LOCAL ----------
+                if (!window.__firebaseAtivo) {
+                    if (!senha) { mostrarMensagem('Informe uma senha.', 'error'); return; }
+                    if (senha !== confirmarSenha) { mostrarMensagem('As senhas não coincidem.', 'error'); return; }
+                    const senhaHashNovo = await hashSenha(senha);
+                    usuarios.push({
+                        id: proximoIdUsuario++, nome, username, email,
+                        senhaHash: senhaHashNovo, perfil, ativo: true, dataCriacao: new Date().toISOString()
+                    });
+                    carregarUsuarios();
+                    document.getElementById('form-usuario').classList.add('hidden');
+                    document.getElementById('usuario-form').reset();
+                    salvarDados();
+                    mostrarMensagem('Usuário cadastrado com sucesso!', 'success');
+                    return;
+                }
+
+                // ---------- Modo FIREBASE AUTH ----------
+                if (!email) { mostrarMensagem('O e-mail é obrigatório para criar o acesso.', 'error'); return; }
+                if (!senha) { mostrarMensagem('Informe uma senha inicial (mínimo 6 caracteres).', 'error'); return; }
+                if (senha.length < 6) { mostrarMensagem('A senha deve ter pelo menos 6 caracteres.', 'error'); return; }
+                if (senha !== confirmarSenha) { mostrarMensagem('As senhas não coincidem.', 'error'); return; }
+                if (usuarios.some(u => (u.email || '').toLowerCase() === email.toLowerCase())) {
+                    mostrarMensagem('Este e-mail já está cadastrado para outro usuário.', 'error');
+                    return;
+                }
+
+                const btnSalvar = document.getElementById('btn-salvar-usuario');
+                if (btnSalvar) btnSalvar.disabled = true;
+                mostrarMensagem('Criando acesso do usuário...', 'success');
+                try {
+                    // Criação via app secundário: o admin NÃO é deslogado.
+                    const uid = await window.__authCriarUsuario(email, senha);
+                    usuarios.push({
+                        id: proximoIdUsuario++, nome, username, email, authUid: uid,
+                        perfil, ativo: true, dataCriacao: new Date().toISOString()
+                    });
+                    carregarUsuarios();
+                    document.getElementById('form-usuario').classList.add('hidden');
+                    document.getElementById('usuario-form').reset();
+                    salvarDados();
+                    mostrarMensagem('Usuário cadastrado! Ele já pode entrar de qualquer aparelho com o e-mail e a senha.', 'success');
+                } catch (err) {
+                    const code = err.code || '';
+                    if (code === 'auth/email-already-in-use') {
+                        mostrarMensagem('Este e-mail já possui uma conta no sistema.', 'error');
+                    } else if (code === 'auth/weak-password') {
+                        mostrarMensagem('Senha muito fraca (mínimo 6 caracteres).', 'error');
+                    } else if (code === 'auth/invalid-email') {
+                        mostrarMensagem('E-mail inválido.', 'error');
+                    } else {
+                        mostrarMensagem('Erro ao criar usuário: ' + (err.message || code), 'error');
+                    }
+                } finally {
+                    if (btnSalvar) btnSalvar.disabled = false;
+                }
+            }
+
+            // Admin envia e-mail de redefinição de senha para o usuário em edição
+            async function enviarResetSenhaUsuario() {
+                if (!window.__firebaseAtivo) {
+                    mostrarMensagem('Disponível apenas com Firebase ativo.', 'error');
+                    return;
+                }
+                const id = document.getElementById('usuario-id').value;
+                const usuario = usuarios.find(u => u.id === parseInt(id));
+                if (!usuario || !usuario.email) {
+                    mostrarMensagem('Usuário sem e-mail cadastrado.', 'error');
+                    return;
+                }
+                try {
+                    const { sendPasswordResetEmail } = window.__firebaseModules;
+                    await sendPasswordResetEmail(window.__firebaseAuth, usuario.email);
+                    mostrarMensagem('Link de redefinição enviado para ' + usuario.email + '.', 'success');
+                } catch (e) {
+                    mostrarMensagem('Não foi possível enviar: ' + (e.message || e.code), 'error');
+                }
             }
             
             function toggleUsuario(id) {
