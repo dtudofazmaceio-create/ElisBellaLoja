@@ -1,14 +1,61 @@
 
+
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-Content-Type-Options" content="nosniff">
+    <meta http-equiv="X-Frame-Options" content="DENY">
+    <meta name="referrer" content="strict-origin-when-cross-origin">
     <title>ElisBella - Sistema de Gestão</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Firebase SDK -->
+    <script type="module">
+        // Firebase v9+ modular SDK
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+        import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
+        import { getFirestore, doc, setDoc, getDoc, collection, getDocs, onSnapshot, deleteDoc, writeBatch } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+        
+        // ================================================================
+        // CONFIGURAÇÃO FIREBASE
+        // Substitua os valores abaixo com as credenciais do seu projeto Firebase
+        // ================================================================
+        const firebaseConfig = {
+            apiKey: "SUA_API_KEY",
+            authDomain: "SEU_PROJECT_ID.firebaseapp.com",
+            projectId: "SEU_PROJECT_ID",
+            storageBucket: "SEU_PROJECT_ID.appspot.com",
+            messagingSenderId: "SEU_MESSAGING_SENDER_ID",
+            appId: "SEU_APP_ID"
+        };
+        
+        // Inicializar Firebase apenas se configurado
+        const firebaseConfigurado = !firebaseConfig.apiKey.startsWith('SUA_');
+        
+        let app, auth, db;
+        if (firebaseConfigurado) {
+            try {
+                app = initializeApp(firebaseConfig);
+                auth = getAuth(app);
+                db = getFirestore(app);
+                window.__firebaseAuth = auth;
+                window.__firebaseDb = db;
+                window.__firebaseModules = { doc, setDoc, getDoc, collection, getDocs, onSnapshot, deleteDoc, writeBatch, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged };
+                window.__firebaseAtivo = true;
+                console.log('[Firebase] Integração ativa');
+            } catch(e) {
+                console.warn('[Firebase] Erro ao inicializar:', e.message);
+                window.__firebaseAtivo = false;
+            }
+        } else {
+            window.__firebaseAtivo = false;
+            console.info('[Firebase] Não configurado - usando localStorage');
+        }
+    </script>
     <style>
         :root {
             --rosa-claro: #fce4ec;
@@ -44,6 +91,21 @@
             color: var(--cinza-escuro);
             line-height: 1.6;
             min-height: 100vh;
+        }
+
+        /* Busca barcode estoque */
+        .barcode-search-container {
+            transition: box-shadow 0.3s;
+        }
+        .barcode-search-container:focus-within {
+            box-shadow: 0 0 0 3px rgba(244,143,177,0.25);
+        }
+        #resultado-busca-barcode table td,
+        #resultado-busca-barcode table th {
+            border-bottom: 1px solid var(--cinza-medio);
+        }
+        #resultado-busca-barcode table tr:last-child td {
+            border-bottom: none;
         }
 
         /* Tela de Login */
@@ -1564,6 +1626,31 @@
                         </div>
                     </div>
 
+                    <!-- Busca por Código de Barras no Estoque -->
+                    <div class="barcode-search-container mb-2" style="background:#fff5f8;border:1px solid #f48fb1;border-radius:10px;padding:1.2rem;">
+                        <h3 style="color:var(--rosa-escuro);margin-bottom:1rem;"><i class="fas fa-barcode"></i> Busca por Código de Barras</h3>
+                        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;">
+                            <div class="form-group" style="flex:1;min-width:200px;margin-bottom:0;">
+                                <label for="estoque-busca-barcode">Código de Barras</label>
+                                <div class="barcode-input-container">
+                                    <input type="text" id="estoque-busca-barcode" placeholder="Digite ou escaneie o código" 
+                                           style="border-color:var(--rosa-principal);" autocomplete="off">
+                                    <button type="button" class="barcode-btn" id="btn-scan-estoque" title="Simular leitura">
+                                        <i class="fas fa-barcode"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="form-group" style="margin-bottom:0;">
+                                <label>&nbsp;</label>
+                                <div style="display:flex;gap:8px;">
+                                    <button class="btn" id="btn-buscar-barcode-estoque"><i class="fas fa-search"></i> Buscar</button>
+                                    <button class="btn btn-secondary" id="btn-limpar-busca-barcode"><i class="fas fa-times"></i> Limpar</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="resultado-busca-barcode" style="margin-top:1rem;display:none;"></div>
+                    </div>
+
                     <div id="form-ajuste-estoque" class="hidden mb-2">
                         <h3 class="mb-1">Ajuste de Estoque</h3>
                         <form id="ajuste-estoque-form">
@@ -1623,6 +1710,21 @@
                                 <!-- Estoque será inserido aqui via JavaScript -->
                             </tbody>
                         </table>
+                    </div>
+
+                    <!-- Filtro de nome no estoque -->
+                    <div style="margin:1rem 0;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+                        <div style="position:relative;flex:1;min-width:200px;">
+                            <i class="fas fa-search" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:#aaa;"></i>
+                            <input type="text" id="estoque-filtro-nome" placeholder="Filtrar por nome do produto..." 
+                                   style="width:100%;padding:0.6rem 0.6rem 0.6rem 2rem;border:1px solid var(--cinza-medio);border-radius:6px;font-size:0.9rem;">
+                        </div>
+                        <select id="estoque-filtro-status" style="padding:0.6rem;border:1px solid var(--cinza-medio);border-radius:6px;font-size:0.9rem;">
+                            <option value="">Todos os status</option>
+                            <option value="ok">OK</option>
+                            <option value="baixo">Estoque Baixo</option>
+                            <option value="esgotado">Esgotado</option>
+                        </select>
                     </div>
 
                     <div class="section-title mt-2">
@@ -2343,7 +2445,7 @@
             // Estado atual do sistema
             let usuarioLogado = null;
             let itensVendaAtual = [];
-            let formasPagamentoVenda = [];
+            let formasPagamentoVenda = [{ forma: '', valor: 0 }];
             let modoEdicaoCliente = false;
             let modoEdicaoProduto = false;
             let modoEdicaoUsuario = false;
@@ -2655,6 +2757,30 @@
                     e.preventDefault();
                     document.getElementById('backup-modal').classList.add('active');
                 });
+                
+                // Filtros do estoque
+                const filtroNomeEl = document.getElementById('estoque-filtro-nome');
+                const filtroStatusEl = document.getElementById('estoque-filtro-status');
+                if (filtroNomeEl) filtroNomeEl.addEventListener('input', carregarEstoque);
+                if (filtroStatusEl) filtroStatusEl.addEventListener('change', carregarEstoque);
+                
+                // Busca por código de barras no estoque
+                document.getElementById('btn-buscar-barcode-estoque').addEventListener('click', buscarPorCodigoBarrasEstoque);
+                document.getElementById('btn-limpar-busca-barcode').addEventListener('click', limparBuscaBarcode);
+                document.getElementById('btn-scan-estoque').addEventListener('click', function() {
+                    // Scan em venda: tenta usar câmera ou simula
+                    const input = document.getElementById('estoque-busca-barcode');
+                    input.focus();
+                    mostrarMensagem('Aponte o leitor de código de barras para o produto ou digite o código manualmente.', 'info');
+                });
+                
+                // Enter no campo de busca de barcode
+                document.getElementById('estoque-busca-barcode').addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        buscarPorCodigoBarrasEstoque();
+                    }
+                });
             }
 
             // Configurar eventos dos relatórios
@@ -2754,49 +2880,85 @@
                 
                 // Iniciar timer de inatividade
                 iniciarInatividadeTimer();
+                
+                // Indicar status Firebase
+                const fbStatus = document.getElementById('firebase-status');
+                if (fbStatus) {
+                    if (window.__firebaseAtivo) {
+                        fbStatus.textContent = '☁ Firebase';
+                        fbStatus.style.color = '#a5d6a7';
+                    } else {
+                        fbStatus.textContent = '💾 Local';
+                        fbStatus.style.color = '#fff3e0';
+                    }
+                }
+                
+                // Configurar listeners Firebase se ativo
+                if (window.__firebaseAtivo) {
+                    configurarListenerFirebase();
+                }
             }
 
-            function fazerLogin(e) {
+            async function hashSenha(senha) {
+                const encoder = new TextEncoder();
+                const data = encoder.encode(senha + 'elisbella_salt_2024');
+                const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+                const hashArray = Array.from(new Uint8Array(hashBuffer));
+                return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+            }
+
+            async function fazerLogin(e) {
                 e.preventDefault();
                 
                 const username = document.getElementById('username').value.trim();
-                const password = document.getElementById('password').value.trim();
+                const password = document.getElementById('password').value;
                 
-                // Validar campos
                 if (!username || !password) {
                     mostrarMensagemLogin('Preencha todos os campos.', 'error');
                     return;
                 }
                 
-                // Verificar credenciais
-                const usuario = usuarios.find(u => u.username === username && u.senha === password && u.ativo);
+                const senhaHash = await hashSenha(password);
+                const usuario = usuarios.find(u => u.username === username && u.ativo && 
+                    (u.senhaHash === senhaHash || u.senha === password));
                 
                 if (!usuario) {
                     mostrarMensagemLogin('Usuário ou senha inválidos.', 'error');
                     return;
                 }
                 
-                // Login bem sucedido
+                // Migrar senha legada para hash automaticamente
+                if (usuario.senha && !usuario.senhaHash) {
+                    const idx = usuarios.findIndex(u => u.id === usuario.id);
+                    usuarios[idx].senhaHash = senhaHash;
+                    delete usuarios[idx].senha;
+                    salvarDados();
+                }
+                
                 usuarioLogado = usuario;
+                sessionStorage.setItem('eb_session', btoa(JSON.stringify({uid: usuario.id, ts: Date.now()})));
                 mostrarMensagemLogin('Login realizado com sucesso!', 'success');
-                
-                // Limpar formulário
                 document.getElementById('login-form').reset();
-                
-                // Mostrar sistema principal após breve delay
-                setTimeout(() => {
-                    mostrarSistemaPrincipal();
-                }, 500);
+                setTimeout(() => { mostrarSistemaPrincipal(); }, 500);
             }
 
             function fazerLogout() {
                 usuarioLogado = null;
+                sessionStorage.removeItem('eb_session');
                 mostrarTelaLogin();
                 pararInatividadeTimer();
-                mostrarMensagem('Você saiu do sistema.', 'info');
+                if (countdownInatividade) {
+                    clearInterval(countdownInatividade);
+                    countdownInatividade = null;
+                }
+                // Limpar gráficos para evitar memory leak
+                [graficoCategoria, graficoEvolucao, graficoPagamento, graficoTopProdutos].forEach(g => {
+                    if (g) { try { g.destroy(); } catch(e) {} }
+                });
+                graficoCategoria = graficoEvolucao = graficoPagamento = graficoTopProdutos = null;
             }
 
-            function registrarPrimeiroUsuario(e) {
+            async function registrarPrimeiroUsuario(e) {
                 e.preventDefault();
                 
                 const nome = document.getElementById('register-nome').value.trim();
@@ -2822,13 +2984,14 @@
                     return;
                 }
                 
-                // Criar primeiro usuário (admin)
+                // Criar primeiro usuário (admin) com senha hasheada
+                const senhaHashReg = await hashSenha(senha);
                 const novoUsuario = {
                     id: 1,
                     nome,
                     username,
                     email,
-                    senha,
+                    senhaHash: senhaHashReg,
                     perfil: 'admin',
                     ativo: true,
                     dataCriacao: new Date().toISOString()
@@ -2837,8 +3000,8 @@
                 usuarios.push(novoUsuario);
                 salvarDados();
                 
-                // Fazer login automaticamente
                 usuarioLogado = novoUsuario;
+                sessionStorage.setItem('eb_session', btoa(JSON.stringify({uid: novoUsuario.id, ts: Date.now()})));
                 
                 // Fechar modal e mostrar sistema
                 document.getElementById('register-modal').classList.remove('active');
@@ -3513,7 +3676,12 @@
             }
             
             function excluirProduto(id) {
-                if (confirm('Tem certeza que deseja excluir este produto?')) {
+                const produtoNasVendas = vendas.some(v => v.produtos.some(p => p.produtoId === id));
+                if (produtoNasVendas) {
+                    mostrarMensagem('Este produto está vinculado a vendas registradas. Ele não pode ser excluído, mas pode ser desativado.', 'error');
+                    return;
+                }
+                if (confirm('Tem certeza que deseja excluir este produto? Esta ação não pode ser desfeita.')) {
                     // Verificar se o produto tem vendas associadas
                     const produtoTemVendas = vendas.some(v => 
                         v.produtos.some(p => p.produtoId === id)
@@ -3553,17 +3721,24 @@
             }
             
             function simularLeituraCodigoBarrasVenda() {
-                // Simular leitura de código de barras na venda
-                const codigoBarras = gerarCodigoBarrasAleatorio();
+                // Modal para busca por código de barras na venda
+                const codigo = prompt('Digite ou escaneie o código de barras do produto:');
+                if (!codigo || !codigo.trim()) return;
                 
-                // Buscar produto pelo código de barras
-                const produto = produtos.find(p => p.codigoBarras === codigoBarras);
+                const codigoTrim = codigo.trim();
+                const produto = produtos.find(p => 
+                    p.codigoBarras && (p.codigoBarras === codigoTrim || p.codigoBarras.includes(codigoTrim))
+                );
                 
                 if (produto) {
+                    if (produto.quantidade <= 0) {
+                        mostrarMensagem(`Produto "${produto.nome}" encontrado, mas está sem estoque.`, 'warning');
+                        return;
+                    }
                     document.getElementById('venda-produto').value = produto.id;
-                    mostrarMensagem(`Produto encontrado: ${produto.nome}`, 'success');
+                    mostrarMensagem(`✓ Produto encontrado: ${produto.nome} (Estoque: ${produto.quantidade})`, 'success');
                 } else {
-                    mostrarMensagem('Produto não encontrado com este código de barras.', 'warning');
+                    mostrarMensagem(`Nenhum produto encontrado com o código: ${codigoTrim}`, 'warning');
                 }
             }
             
@@ -3576,19 +3751,149 @@
                 return codigo;
             }
 
-            // Funções para Estoque
-            function carregarEstoque() {
-                const tbody = document.querySelector('#tabela-estoque tbody');
-                tbody.innerHTML = '';
+            // Funções para Estoque - Busca por Código de Barras
+            function buscarPorCodigoBarrasEstoque() {
+                const codigo = document.getElementById('estoque-busca-barcode').value.trim();
+                const resultDiv = document.getElementById('resultado-busca-barcode');
                 
-                if (produtos.length === 0) {
-                    const row = document.createElement('tr');
-                    row.innerHTML = `<td colspan="8" class="text-center">Nenhum produto em estoque.</td>`;
-                    tbody.appendChild(row);
+                if (!codigo) {
+                    mostrarMensagem('Digite ou escaneie um código de barras para buscar.', 'warning');
                     return;
                 }
                 
-                produtos.forEach(produto => {
+                // Buscar produto pelo código (busca parcial e exata)
+                const encontrados = produtos.filter(p => 
+                    p.codigoBarras && (
+                        p.codigoBarras === codigo || 
+                        p.codigoBarras.includes(codigo) ||
+                        p.nome.toLowerCase().includes(codigo.toLowerCase())
+                    )
+                );
+                
+                if (encontrados.length === 0) {
+                    resultDiv.style.display = 'block';
+                    resultDiv.innerHTML = `
+                        <div style="background:#fff3e0;border:1px solid #ff9800;border-radius:8px;padding:1rem;">
+                            <p><i class="fas fa-exclamation-triangle" style="color:#ff9800;"></i> 
+                            Nenhum produto encontrado com o código <strong>${escapeHtml(codigo)}</strong>.</p>
+                        </div>`;
+                    return;
+                }
+                
+                let html = `<div style="border:1px solid var(--cinza-medio);border-radius:8px;overflow:hidden;">
+                    <table style="width:100%;border-collapse:collapse;">
+                        <thead>
+                            <tr style="background:var(--rosa-claro);">
+                                <th style="padding:0.7rem;text-align:left;">Produto</th>
+                                <th style="padding:0.7rem;text-align:left;">Categoria</th>
+                                <th style="padding:0.7rem;text-align:center;">Tamanho</th>
+                                <th style="padding:0.7rem;text-align:center;">Cód. Barras</th>
+                                <th style="padding:0.7rem;text-align:center;">Estoque</th>
+                                <th style="padding:0.7rem;text-align:right;">Preço Venda</th>
+                                <th style="padding:0.7rem;text-align:center;">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>`;
+                
+                encontrados.forEach(p => {
+                    const categoria = categorias.find(c => c.id === p.categoriaId);
+                    const nomeCategoria = categoria ? categoria.nome : 'Sem categoria';
+                    const status = p.quantidade === 0 ? '<span class="status-out">ESGOTADO</span>' :
+                                   p.quantidade < 5 ? '<span class="status-low">BAIXO</span>' :
+                                   '<span class="status-ok">OK</span>';
+                    html += `
+                        <tr style="border-top:1px solid var(--cinza-medio);">
+                            <td style="padding:0.7rem;">${escapeHtml(p.nome)}</td>
+                            <td style="padding:0.7rem;">${escapeHtml(nomeCategoria)}</td>
+                            <td style="padding:0.7rem;text-align:center;">${p.tamanho || '-'}</td>
+                            <td style="padding:0.7rem;text-align:center;font-family:monospace;">${p.codigoBarras || '-'}</td>
+                            <td style="padding:0.7rem;text-align:center;font-weight:bold;">${p.quantidade}</td>
+                            <td style="padding:0.7rem;text-align:right;">${formatarMoeda(p.precoVenda)}</td>
+                            <td style="padding:0.7rem;text-align:center;">${status}</td>
+                        </tr>`;
+                });
+                
+                html += `</tbody></table></div>
+                    <p style="margin-top:0.5rem;font-size:0.85rem;color:#666;">
+                        <i class="fas fa-info-circle"></i> ${encontrados.length} produto(s) encontrado(s) para "${escapeHtml(codigo)}"
+                    </p>`;
+                
+                resultDiv.style.display = 'block';
+                resultDiv.innerHTML = html;
+                
+                // Destaque na tabela principal
+                filtrarEstoquePorCodigo(codigo);
+            }
+            
+            function filtrarEstoquePorCodigo(codigo) {
+                const rows = document.querySelectorAll('#tabela-estoque tbody tr');
+                let found = false;
+                rows.forEach(row => {
+                    const cells = row.querySelectorAll('td');
+                    if (cells.length > 3) {
+                        const codigoCell = cells[3].textContent.trim();
+                        const nomeCell = cells[0].textContent.toLowerCase();
+                        if (codigoCell === codigo || codigoCell.includes(codigo) || nomeCell.includes(codigo.toLowerCase())) {
+                            row.style.background = 'rgba(244,143,177,0.15)';
+                            row.style.outline = '2px solid var(--rosa-principal)';
+                            if (!found) {
+                                row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                                found = true;
+                            }
+                        } else {
+                            row.style.background = '';
+                            row.style.outline = '';
+                        }
+                    }
+                });
+            }
+            
+            function limparBuscaBarcode() {
+                document.getElementById('estoque-busca-barcode').value = '';
+                document.getElementById('resultado-busca-barcode').style.display = 'none';
+                document.getElementById('resultado-busca-barcode').innerHTML = '';
+                // Remover destaques
+                document.querySelectorAll('#tabela-estoque tbody tr').forEach(row => {
+                    row.style.background = '';
+                    row.style.outline = '';
+                });
+            }
+            
+            function escapeHtml(str) {
+                if (!str) return '';
+                return String(str)
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;')
+                    .replace(/'/g, '&#39;');
+            }
+
+            function carregarEstoque() {
+                const filtroNome = document.getElementById('estoque-filtro-nome') ? document.getElementById('estoque-filtro-nome').value.toLowerCase() : '';
+                const filtroStatus = document.getElementById('estoque-filtro-status') ? document.getElementById('estoque-filtro-status').value : '';
+                
+                const tbody = document.querySelector('#tabela-estoque tbody');
+                tbody.innerHTML = '';
+                
+                let produtosFiltrados = produtos.filter(p => {
+                    if (filtroNome && !p.nome.toLowerCase().includes(filtroNome)) return false;
+                    if (filtroStatus === 'ok' && p.quantidade < 5) return false;
+                    if (filtroStatus === 'baixo' && (p.quantidade === 0 || p.quantidade >= 5)) return false;
+                    if (filtroStatus === 'esgotado' && p.quantidade !== 0) return false;
+                    return true;
+                });
+                
+                if (produtosFiltrados.length === 0) {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `<td colspan="8" class="text-center">Nenhum produto encontrado com os filtros aplicados.</td>`;
+                    tbody.appendChild(row);
+                    carregarHistoricoEstoque();
+                    atualizarOpcoesProdutosAjuste();
+                    return;
+                }
+                
+                produtosFiltrados.forEach(produto => {
                     const categoria = categorias.find(c => c.id === produto.categoriaId);
                     const nomeCategoria = categoria ? categoria.nome : 'Sem categoria';
                     const valorTotal = produto.precoCusto * produto.quantidade;
@@ -3823,7 +4128,7 @@
                 document.getElementById('form-venda').classList.remove('hidden');
                 document.getElementById('venda-form').reset();
                 
-                // Definir data e hora atual em tempo real
+                // Setar data e hora atual no campo de venda
                 const agora = new Date();
                 const agoraISO = new Date(agora.getTime() - (agora.getTimezoneOffset() * 60000)).toISOString().slice(0, 16);
                 document.getElementById('venda-data').value = agoraISO;
@@ -3846,6 +4151,8 @@
                 document.getElementById('venda-form').reset();
                 itensVendaAtual = [];
                 formasPagamentoVenda = [{ forma: '', valor: 0 }];
+                renderizarFormasPagamento();
+                atualizarTabelaItensVenda();
             }
             
             function adicionarItemVenda() {
@@ -4034,6 +4341,12 @@
                 const data = document.getElementById('venda-data').value || new Date().toISOString();
                 const observacoes = document.getElementById('venda-observacoes').value.trim();
                 
+                // Verificar se há itens na venda
+                if (itensVendaAtual.length === 0) {
+                    mostrarMensagem('Adicione pelo menos um produto à venda.', 'error');
+                    return;
+                }
+                
                 // Validar formas de pagamento
                 atualizarTotalPagamentos();
                 const totalVenda = itensVendaAtual.reduce((sum, item) => sum + item.subtotal, 0);
@@ -4062,6 +4375,10 @@
                 // Verificar se há estoque suficiente para todos os produtos
                 for (const item of itensVendaAtual) {
                     const produto = produtos.find(p => p.id === item.produtoId);
+                    if (!produto) {
+                        mostrarMensagem('Produto não encontrado. Recarregue a página.', 'error');
+                        return;
+                    }
                     if (produto.quantidade < item.quantidade) {
                         mostrarMensagem(`Estoque insuficiente para ${produto.nome}. Estoque atual: ${produto.quantidade}`, 'error');
                         return;
@@ -4117,6 +4434,8 @@
                 document.getElementById('venda-form').reset();
                 itensVendaAtual = [];
                 formasPagamentoVenda = [{ forma: '', valor: 0 }];
+                renderizarFormasPagamento();
+                atualizarTabelaItensVenda();
                 
                 // Atualizar dashboard e relatórios
                 carregarDashboard();
@@ -5911,7 +6230,7 @@
                 document.getElementById('form-usuario').scrollIntoView({ behavior: 'smooth' });
             }
             
-            function salvarUsuario() {
+            async function salvarUsuario() {
                 const id = document.getElementById('usuario-id').value;
                 const nome = document.getElementById('usuario-nome').value.trim();
                 const username = document.getElementById('usuario-username').value.trim();
@@ -5946,9 +6265,11 @@
                             perfil
                         };
                         
-                        // Atualizar senha se fornecida
+                        // Atualizar senha se fornecida (com hash)
                         if (senha) {
-                            novoUsuario.senha = senha;
+                            const senhaHashEdit = await hashSenha(senha);
+                            novoUsuario.senhaHash = senhaHashEdit;
+                            delete novoUsuario.senha;
                         }
                         
                         usuarios[index] = novoUsuario;
@@ -5961,13 +6282,14 @@
                         return;
                     }
                     
-                    // Criar novo usuário
+                    // Criar novo usuário com hash
+                    const senhaHashNovo = await hashSenha(senha);
                     novoUsuario = {
                         id: proximoIdUsuario++,
                         nome,
                         username,
                         email,
-                        senha,
+                        senhaHash: senhaHashNovo,
                         perfil,
                         ativo: true,
                         dataCriacao: new Date().toISOString()
@@ -6485,6 +6807,89 @@
                 }, 5000);
             }
             
+            // ================================================================
+            // FIREBASE SYNC - Sincronização em tempo real
+            // ================================================================
+            async function sincronizarComFirebase(colecao, dados) {
+                if (!window.__firebaseAtivo || !window.__firebaseDb) return;
+                try {
+                    const { doc, setDoc } = window.__firebaseModules;
+                    const db = window.__firebaseDb;
+                    const lojaId = btoa(configuracoes.nomeLoja).replace(/=/g, '');
+                    await setDoc(doc(db, 'lojas', lojaId, 'dados', colecao), { 
+                        items: dados, 
+                        updatedAt: new Date().toISOString(),
+                        updatedBy: usuarioLogado ? usuarioLogado.id : 'system'
+                    });
+                } catch (e) {
+                    console.warn('[Firebase Sync] Erro ao sincronizar ' + colecao + ':', e.message);
+                }
+            }
+            
+            async function carregarDoFirebase() {
+                if (!window.__firebaseAtivo || !window.__firebaseDb) return false;
+                try {
+                    const { doc, getDoc } = window.__firebaseModules;
+                    const db = window.__firebaseDb;
+                    const lojaId = btoa(configuracoes.nomeLoja).replace(/=/g, '');
+                    const colecoes = ['clientes', 'produtos', 'vendas', 'historicoEstoque', 'categorias'];
+                    let carregou = false;
+                    
+                    for (const col of colecoes) {
+                        const docRef = doc(db, 'lojas', lojaId, 'dados', col);
+                        const snap = await getDoc(docRef);
+                        if (snap.exists() && snap.data().items) {
+                            const dados = snap.data().items;
+                            localStorage.setItem(col, JSON.stringify(dados));
+                            carregou = true;
+                        }
+                    }
+                    return carregou;
+                } catch (e) {
+                    console.warn('[Firebase] Erro ao carregar:', e.message);
+                    return false;
+                }
+            }
+            
+            function configurarListenerFirebase() {
+                if (!window.__firebaseAtivo || !window.__firebaseDb) return;
+                const { collection, onSnapshot } = window.__firebaseModules;
+                const db = window.__firebaseDb;
+                const lojaId = btoa(configuracoes.nomeLoja).replace(/=/g, '');
+                
+                // Listener de produtos para sync em tempo real
+                onSnapshot(
+                    { path: `lojas/${lojaId}/dados/produtos` },
+                    (snap) => {
+                        if (snap.exists()) {
+                            const novos = snap.data().items;
+                            if (JSON.stringify(novos) !== JSON.stringify(produtos)) {
+                                produtos = novos;
+                                localStorage.setItem('produtos', JSON.stringify(produtos));
+                                if (document.getElementById('estoque-section') && !document.getElementById('estoque-section').classList.contains('hidden')) {
+                                    carregarEstoque();
+                                }
+                            }
+                        }
+                    },
+                    (err) => console.warn('[Firebase Listener] Produtos:', err.message)
+                );
+            }
+            
+            /* ============================================================
+             * FIRESTORE SECURITY RULES (cole no Firebase Console)
+             * ============================================================
+             * rules_version = '2';
+             * service cloud.firestore {
+             *   match /databases/{database}/documents {
+             *     match /lojas/{lojaId}/dados/{colecao} {
+             *       allow read, write: if request.auth != null;
+             *     }
+             *   }
+             * }
+             * ============================================================
+             */
+
             function salvarDados() {
                 localStorage.setItem('usuarios', JSON.stringify(usuarios));
                 localStorage.setItem('clientes', JSON.stringify(clientes));
@@ -6493,6 +6898,15 @@
                 localStorage.setItem('historicoEstoque', JSON.stringify(historicoEstoque));
                 localStorage.setItem('categorias', JSON.stringify(categorias));
                 localStorage.setItem('configuracoes', JSON.stringify(configuracoes));
+                
+                // Sincronizar com Firebase se ativo
+                if (window.__firebaseAtivo) {
+                    sincronizarComFirebase('clientes', clientes);
+                    sincronizarComFirebase('produtos', produtos);
+                    sincronizarComFirebase('vendas', vendas);
+                    sincronizarComFirebase('historicoEstoque', historicoEstoque);
+                    sincronizarComFirebase('categorias', categorias);
+                }
             }
         </script>
     </body>
