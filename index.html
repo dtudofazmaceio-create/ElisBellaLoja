@@ -2,7 +2,13 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#ad1457">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="ElisBella">
+    <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Crect width='180' height='180' rx='40' fill='%23ad1457'/%3E%3Ctext x='50%25' y='54%25' font-size='90' text-anchor='middle' dominant-baseline='middle' fill='white' font-family='Arial'%3EE%3C/text%3E%3C/svg%3E">
     <meta http-equiv="X-Content-Type-Options" content="nosniff">
     <meta http-equiv="X-Frame-Options" content="DENY">
     <meta name="referrer" content="strict-origin-when-cross-origin">
@@ -15,7 +21,7 @@
     <script type="module">
         // Firebase v9+ modular SDK
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
-        import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
+        import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, signInAnonymously } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
         import { getFirestore, doc, setDoc, getDoc, collection, getDocs, onSnapshot, deleteDoc, writeBatch } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
         
         // ================================================================
@@ -42,8 +48,17 @@
                 db = getFirestore(app);
                 window.__firebaseAuth = auth;
                 window.__firebaseDb = db;
-                window.__firebaseModules = { doc, setDoc, getDoc, collection, getDocs, onSnapshot, deleteDoc, writeBatch, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged };
+                window.__firebaseModules = { doc, setDoc, getDoc, collection, getDocs, onSnapshot, deleteDoc, writeBatch, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, signInAnonymously };
                 window.__firebaseAtivo = true;
+                // Autenticação anônima: garante request.auth != null para as regras de segurança
+                // funcionarem em qualquer dispositivo, sem exigir login por e-mail no Firebase.
+                window.__firebaseAuthPronto = signInAnonymously(auth)
+                    .then(() => { console.log('[Firebase] Sessão anônima ativa'); return true; })
+                    .catch((err) => {
+                        console.warn('[Firebase] Auth anônima indisponível:', err.code || err.message);
+                        // Mesmo sem auth anônima, segue tentando (caso as regras estejam abertas)
+                        return false;
+                    });
                 console.log('[Firebase] Integração ativa');
             } catch(e) {
                 console.warn('[Firebase] Erro ao inicializar:', e.message);
@@ -1209,6 +1224,148 @@
             margin-top: 0.5rem;
             background: var(--azul-escuro);
             color: white;
+        }
+
+        /* ============================================================
+         * SPLASH DE CARREGAMENTO (boot Firebase)
+         * ============================================================ */
+        #boot-splash {
+            position: fixed;
+            inset: 0;
+            z-index: 5000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, var(--rosa-escuro), var(--azul-escuro));
+            color: #fff;
+        }
+        .boot-splash-box { text-align: center; }
+        .boot-splash-box i { font-size: 3rem; margin-bottom: 1rem; display: block; }
+        .boot-splash-box p { margin-top: 1rem; font-weight: 300; letter-spacing: .5px; }
+        .boot-splash-spinner {
+            width: 40px; height: 40px;
+            margin: 0 auto;
+            border: 4px solid rgba(255,255,255,0.3);
+            border-top-color: #fff;
+            border-radius: 50%;
+            animation: bootspin 0.8s linear infinite;
+        }
+        @keyframes bootspin { to { transform: rotate(360deg); } }
+
+        /* ============================================================
+         * MODO APLICATIVO NATIVO (MOBILE)
+         * ============================================================ */
+        @media (max-width: 768px) {
+            html, body {
+                -webkit-text-size-adjust: 100%;
+                -webkit-tap-highlight-color: transparent;
+                overscroll-behavior-y: contain;
+            }
+            body { -webkit-overflow-scrolling: touch; }
+
+            /* Header compacto e fixo no topo, respeitando o notch */
+            header {
+                padding: 0.6rem 0;
+                padding-top: calc(0.6rem + env(safe-area-inset-top));
+            }
+            .header-content {
+                flex-direction: row !important;
+                justify-content: space-between !important;
+                text-align: left !important;
+                gap: 0.5rem !important;
+            }
+            .logo { gap: 8px; }
+            .logo i, .logo-img { font-size: 1.6rem; width: 32px; height: 32px; }
+            .logo h1 { font-size: 1.1rem; }
+            .logo span { display: none; }
+            .user-info i { font-size: 1.5rem; }
+            #current-store { display: none; }
+            #current-user { font-size: 0.85rem; max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+            /* Conteúdo principal ocupa toda a largura, sem cantos arredondados de "card" */
+            .container { padding: 0 10px; }
+            .main-content {
+                padding: 1rem;
+                border-radius: 0;
+                margin-bottom: 0;
+                box-shadow: none;
+                min-height: calc(100vh - 200px);
+            }
+
+            /* NAVEGAÇÃO INFERIOR estilo app nativo */
+            nav {
+                position: fixed;
+                bottom: 0;
+                left: 0;
+                right: 0;
+                margin: 0;
+                border-radius: 0;
+                z-index: 2000;
+                box-shadow: 0 -2px 12px rgba(0,0,0,0.15);
+                padding-bottom: env(safe-area-inset-bottom);
+                background: var(--branco);
+            }
+            .nav-menu {
+                flex-direction: row !important;
+                flex-wrap: nowrap;
+                justify-content: space-around;
+                overflow-x: auto;
+                scrollbar-width: none;
+            }
+            .nav-menu::-webkit-scrollbar { display: none; }
+            .nav-item { min-width: 0 !important; flex: 1 0 auto; }
+            .nav-link {
+                display: flex !important;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                gap: 3px;
+                padding: 0.5rem 0.4rem 0.45rem !important;
+                font-size: 0.62rem;
+                line-height: 1.1;
+                border-bottom: none !important;
+                min-width: 60px;
+            }
+            .nav-link i { font-size: 1.25rem; }
+            .nav-link::after { display: none; }
+            .nav-link.active {
+                color: var(--rosa-escuro);
+                background: linear-gradient(180deg, rgba(244,143,177,0.12), transparent);
+            }
+            .nav-link.active i { transform: translateY(-1px); }
+
+            /* Espaço para a barra inferior não cobrir o conteúdo/rodapé */
+            #main-system { padding-bottom: 70px; }
+            footer {
+                margin-top: 1rem;
+                padding: 1rem 0 calc(1rem + env(safe-area-inset-bottom));
+                font-size: 0.75rem;
+            }
+
+            /* Menu do usuário ocupa largura cheia, mais "app-like" */
+            .user-menu {
+                position: fixed;
+                top: auto;
+                bottom: 70px;
+                left: 10px;
+                right: 10px;
+                min-width: 0;
+                border-radius: 14px;
+            }
+            .user-menu-item { padding: 1rem; font-size: 1rem; }
+
+            /* Botões e campos com alvo de toque maior */
+            .btn { padding: 0.8rem 1rem; font-size: 0.95rem; }
+            input, select, textarea { font-size: 16px; } /* evita zoom automático no iOS */
+
+            /* Tabelas roláveis horizontalmente dentro do app */
+            .tabela-container, .table-responsive { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+        }
+
+        /* Quando instalado como app (standalone), some o aviso de "fechar = backup" visual */
+        @media (display-mode: standalone) {
+            body { user-select: none; -webkit-user-select: none; }
+            input, textarea { user-select: text; -webkit-user-select: text; }
         }
     </style>
 </head>
@@ -2432,6 +2589,10 @@
                 logo: ""
             };
 
+            // ID fixo da loja no Firebase: garante que TODOS os dispositivos compartilhem
+            // os mesmos dados (usuários, produtos, etc.), independente do nome da loja.
+            const LOJA_ID = 'elisbella_main';
+
             // Variáveis globais
             let proximoIdCliente = clientes.length > 0 ? Math.max(...clientes.map(c => c.id)) + 1 : 1;
             let proximoIdProduto = produtos.length > 0 ? Math.max(...produtos.map(p => p.id)) + 1 : 1;
@@ -2483,7 +2644,22 @@
             ];
 
             // Inicialização do sistema
-            document.addEventListener('DOMContentLoaded', function() {
+            document.addEventListener('DOMContentLoaded', async function() {
+                // Aguardar Firebase e carregar dados compartilhados (inclui usuários)
+                // ANTES de decidir entre login e cadastro do primeiro usuário.
+                // Isso garante que um usuário criado em outro aparelho consiga entrar aqui.
+                if (window.__firebaseAtivo) {
+                    mostrarSplashCarregando(true);
+                    try {
+                        if (window.__firebaseAuthPronto) { await window.__firebaseAuthPronto; }
+                        await carregarDoFirebase();
+                        configurarListenerFirebase();
+                    } catch (e) {
+                        console.warn('[Firebase] Falha no carregamento inicial:', e.message);
+                    }
+                    mostrarSplashCarregando(false);
+                }
+
                 // Verificar se há usuários cadastrados
                 if (usuarios.length === 0) {
                     // Mostrar modal de cadastro do primeiro usuário
@@ -2504,7 +2680,70 @@
                 
                 // Aplicar configurações
                 aplicarConfiguracoes();
+
+                // Configurar app mobile (manifest + modo standalone)
+                configurarAppMobile();
             });
+
+            // Splash simples enquanto carrega do Firebase no boot
+            function mostrarSplashCarregando(mostrar) {
+                let splash = document.getElementById('boot-splash');
+                if (mostrar) {
+                    if (!splash) {
+                        splash = document.createElement('div');
+                        splash.id = 'boot-splash';
+                        splash.innerHTML = '<div class="boot-splash-box"><i class="fas fa-tshirt"></i><div class="boot-splash-spinner"></div><p>Conectando à nuvem…</p></div>';
+                        document.body.appendChild(splash);
+                    }
+                    splash.style.display = 'flex';
+                } else if (splash) {
+                    splash.style.display = 'none';
+                }
+            }
+
+            // Configura o app como aplicativo instalável (PWA) e ajusta o modo standalone
+            function configurarAppMobile() {
+                try {
+                    // Ícone do app gerado em SVG (E sobre fundo rosa)
+                    const iconSvg = "data:image/svg+xml," + encodeURIComponent(
+                        "<svg xmlns='http://www.w3.org/2000/svg' width='512' height='512'>" +
+                        "<rect width='512' height='512' rx='110' fill='#ad1457'/>" +
+                        "<text x='50%' y='55%' font-size='270' text-anchor='middle' dominant-baseline='middle' fill='white' font-family='Arial' font-weight='bold'>E</text>" +
+                        "</svg>"
+                    );
+                    const manifest = {
+                        name: configuracoes.nomeLoja + " - Gestão",
+                        short_name: configuracoes.nomeLoja || "ElisBella",
+                        start_url: ".",
+                        display: "standalone",
+                        orientation: "portrait",
+                        background_color: "#ad1457",
+                        theme_color: "#ad1457",
+                        icons: [
+                            { src: iconSvg, sizes: "512x512", type: "image/svg+xml", purpose: "any maskable" }
+                        ]
+                    };
+                    const blob = new Blob([JSON.stringify(manifest)], { type: 'application/json' });
+                    const url = URL.createObjectURL(blob);
+                    let link = document.querySelector('link[rel="manifest"]');
+                    if (!link) {
+                        link = document.createElement('link');
+                        link.rel = 'manifest';
+                        document.head.appendChild(link);
+                    }
+                    link.href = url;
+
+                    // Marca o body quando rodando como app instalado (tela cheia)
+                    const standalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+                    if (standalone) {
+                        document.body.classList.add('app-standalone');
+                        // Em modo app instalado, não faz sentido o aviso de backup ao "fechar aba"
+                        configuracoes.backupWarning = configuracoes.backupWarning;
+                    }
+                } catch (e) {
+                    console.warn('[App Mobile] Não foi possível configurar PWA:', e.message);
+                }
+            }
 
             // Atualizar data e hora em tempo real
             function atualizarDataHora() {
@@ -6813,7 +7052,7 @@
                 try {
                     const { doc, setDoc } = window.__firebaseModules;
                     const db = window.__firebaseDb;
-                    const lojaId = btoa(configuracoes.nomeLoja).replace(/=/g, '');
+                    const lojaId = LOJA_ID;
                     await setDoc(doc(db, 'lojas', lojaId, 'dados', colecao), { 
                         items: dados, 
                         updatedAt: new Date().toISOString(),
@@ -6824,21 +7063,56 @@
                 }
             }
             
+            // Aplica uma coleção carregada do Firebase nas variáveis em memória + localStorage
+            function aplicarColecaoCarregada(col, dados) {
+                switch (col) {
+                    case 'usuarios':
+                        usuarios = dados;
+                        proximoIdUsuario = usuarios.length > 0 ? Math.max(...usuarios.map(u => u.id)) + 1 : 1;
+                        break;
+                    case 'clientes':
+                        clientes = dados;
+                        proximoIdCliente = clientes.length > 0 ? Math.max(...clientes.map(c => c.id)) + 1 : 1;
+                        break;
+                    case 'produtos':
+                        produtos = dados;
+                        proximoIdProduto = produtos.length > 0 ? Math.max(...produtos.map(p => p.id)) + 1 : 1;
+                        break;
+                    case 'vendas':
+                        vendas = dados;
+                        proximoIdVenda = vendas.length > 0 ? Math.max(...vendas.map(v => v.id)) + 1 : 1;
+                        break;
+                    case 'historicoEstoque':
+                        historicoEstoque = dados;
+                        proximoIdHistorico = historicoEstoque.length > 0 ? Math.max(...historicoEstoque.map(h => h.id)) + 1 : 1;
+                        break;
+                    case 'categorias':
+                        categorias = dados;
+                        proximoIdCategoria = categorias.length > 0 ? Math.max(...categorias.map(c => c.id)) + 1 : 1;
+                        break;
+                    case 'configuracoes':
+                        configuracoes = { ...configuracoes, ...dados };
+                        inactivityLimit = configuracoes.inatividade * 60;
+                        break;
+                }
+                localStorage.setItem(col, JSON.stringify(col === 'configuracoes' ? configuracoes : dados));
+            }
+
             async function carregarDoFirebase() {
                 if (!window.__firebaseAtivo || !window.__firebaseDb) return false;
                 try {
                     const { doc, getDoc } = window.__firebaseModules;
                     const db = window.__firebaseDb;
-                    const lojaId = btoa(configuracoes.nomeLoja).replace(/=/g, '');
-                    const colecoes = ['clientes', 'produtos', 'vendas', 'historicoEstoque', 'categorias'];
+                    const lojaId = LOJA_ID;
+                    // 'usuarios' incluído para que o login funcione em qualquer dispositivo
+                    const colecoes = ['usuarios', 'clientes', 'produtos', 'vendas', 'historicoEstoque', 'categorias', 'configuracoes'];
                     let carregou = false;
-                    
+
                     for (const col of colecoes) {
                         const docRef = doc(db, 'lojas', lojaId, 'dados', col);
                         const snap = await getDoc(docRef);
-                        if (snap.exists() && snap.data().items) {
-                            const dados = snap.data().items;
-                            localStorage.setItem(col, JSON.stringify(dados));
+                        if (snap.exists() && snap.data().items !== undefined) {
+                            aplicarColecaoCarregada(col, snap.data().items);
                             carregou = true;
                         }
                     }
@@ -6851,9 +7125,11 @@
             
             function configurarListenerFirebase() {
                 if (!window.__firebaseAtivo || !window.__firebaseDb) return;
+                if (window.__listenersConfigurados) return;
+                window.__listenersConfigurados = true;
                 const { collection, onSnapshot } = window.__firebaseModules;
                 const db = window.__firebaseDb;
-                const lojaId = btoa(configuracoes.nomeLoja).replace(/=/g, '');
+                const lojaId = LOJA_ID;
                 
                 // Listener de produtos para sync em tempo real
                 onSnapshot(
@@ -6871,6 +7147,26 @@
                         }
                     },
                     (err) => console.warn('[Firebase Listener] Produtos:', err.message)
+                );
+
+                // Listener de usuários: mantém a lista de acesso atualizada entre dispositivos
+                onSnapshot(
+                    { path: `lojas/${lojaId}/dados/usuarios` },
+                    (snap) => {
+                        if (snap.exists()) {
+                            const novos = snap.data().items;
+                            if (Array.isArray(novos) && JSON.stringify(novos) !== JSON.stringify(usuarios)) {
+                                usuarios = novos;
+                                proximoIdUsuario = usuarios.length > 0 ? Math.max(...usuarios.map(u => u.id)) + 1 : 1;
+                                localStorage.setItem('usuarios', JSON.stringify(usuarios));
+                                const secUsuarios = document.getElementById('usuarios-section');
+                                if (secUsuarios && !secUsuarios.classList.contains('hidden')) {
+                                    carregarUsuarios();
+                                }
+                            }
+                        }
+                    },
+                    (err) => console.warn('[Firebase Listener] Usuários:', err.message)
                 );
             }
             
@@ -6899,11 +7195,13 @@
                 
                 // Sincronizar com Firebase se ativo
                 if (window.__firebaseAtivo) {
+                    sincronizarComFirebase('usuarios', usuarios);
                     sincronizarComFirebase('clientes', clientes);
                     sincronizarComFirebase('produtos', produtos);
                     sincronizarComFirebase('vendas', vendas);
                     sincronizarComFirebase('historicoEstoque', historicoEstoque);
                     sincronizarComFirebase('categorias', categorias);
+                    sincronizarComFirebase('configuracoes', configuracoes);
                 }
             }
         </script>
