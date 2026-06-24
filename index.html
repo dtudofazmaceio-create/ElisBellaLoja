@@ -1,5 +1,3 @@
-
-
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -22,19 +20,19 @@
         
         // ================================================================
         // CONFIGURAÇÃO FIREBASE
-        // Substitua os valores abaixo com as credenciais do seu projeto Firebase
         // ================================================================
         const firebaseConfig = {
-            apiKey: "SUA_API_KEY",
-            authDomain: "SEU_PROJECT_ID.firebaseapp.com",
-            projectId: "SEU_PROJECT_ID",
-            storageBucket: "SEU_PROJECT_ID.appspot.com",
-            messagingSenderId: "SEU_MESSAGING_SENDER_ID",
-            appId: "SEU_APP_ID"
+            apiKey: "AIzaSyCLX5YYFzDNA1jdtKi4MTRxTops_KgGqm8",
+            authDomain: "crmcorretorpro.firebaseapp.com",
+            projectId: "crmcorretorpro",
+            storageBucket: "crmcorretorpro.firebasestorage.app",
+            messagingSenderId: "1089541291028",
+            appId: "1:1089541291028:web:8f7173bd0ebfbe7a803b01",
+            measurementId: "G-9DKRMY6RG3"
         };
-        
+
         // Inicializar Firebase apenas se configurado
-        const firebaseConfigurado = !firebaseConfig.apiKey.startsWith('SUA_');
+        const firebaseConfigurado = true;
         
         let app, auth, db;
         if (firebaseConfigurado) {
