@@ -2,84 +2,19 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <meta name="theme-color" content="#ad1457">
-    <meta name="mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="ElisBella">
-    <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Crect width='180' height='180' rx='40' fill='%23ad1457'/%3E%3Ctext x='50%25' y='54%25' font-size='90' text-anchor='middle' dominant-baseline='middle' fill='white' font-family='Arial'%3EE%3C/text%3E%3C/svg%3E">
-    <meta http-equiv="X-Content-Type-Options" content="nosniff">
-    <meta http-equiv="X-Frame-Options" content="DENY">
-    <meta name="referrer" content="strict-origin-when-cross-origin">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ElisBella - Sistema de Gestão</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <!-- Firebase SDK -->
-    <script type="module">
-        // Firebase v9+ modular SDK
-        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
-        import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, signInAnonymously, sendPasswordResetEmail, setPersistence, browserLocalPersistence, updatePassword, EmailAuthProvider, reauthenticateWithCredential } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
-        import { getFirestore, doc, setDoc, getDoc, collection, getDocs, onSnapshot, deleteDoc, writeBatch } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
-        
-        // ================================================================
-        // CONFIGURAÇÃO FIREBASE
-        // ================================================================
-        const firebaseConfig = {
-            apiKey: "AIzaSyCLX5YYFzDNA1jdtKi4MTRxTops_KgGqm8",
-            authDomain: "crmcorretorpro.firebaseapp.com",
-            projectId: "crmcorretorpro",
-            storageBucket: "crmcorretorpro.firebasestorage.app",
-            messagingSenderId: "1089541291028",
-            appId: "1:1089541291028:web:8f7173bd0ebfbe7a803b01",
-            measurementId: "G-9DKRMY6RG3"
-        };
 
-        // Inicializar Firebase apenas se configurado
-        const firebaseConfigurado = true;
-        
-        let app, auth, db;
-        if (firebaseConfigurado) {
-            try {
-                app = initializeApp(firebaseConfig);
-                auth = getAuth(app);
-                db = getFirestore(app);
-                window.__firebaseAuth = auth;
-                window.__firebaseDb = db;
-                window.__firebaseModules = { doc, setDoc, getDoc, collection, getDocs, onSnapshot, deleteDoc, writeBatch, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, signInAnonymously, sendPasswordResetEmail, updatePassword, EmailAuthProvider, reauthenticateWithCredential };
-                window.__firebaseAtivo = true;
-
-                // Persistência local: mantém o usuário logado ao reabrir o app/aba.
-                try { await setPersistence(auth, browserLocalPersistence); } catch(e) { console.warn('[Firebase] Persistência:', e.message); }
-
-                // App SECUNDÁRIO: usado para criar novos usuários SEM deslogar o admin.
-                // (createUserWithEmailAndPassword loga automaticamente o novo usuário;
-                //  fazendo isso num app separado, a sessão do admin fica intacta.)
-                window.__authCriarUsuario = async (email, senha) => {
-                    const secApp = initializeApp(firebaseConfig, 'secundario_' + Date.now());
-                    const secAuth = getAuth(secApp);
-                    try {
-                        const cred = await createUserWithEmailAndPassword(secAuth, email, senha);
-                        const uid = cred.user.uid;
-                        try { await signOut(secAuth); } catch(e) {}
-                        return uid;
-                    } finally {
-                        try { await secApp.delete?.(); } catch(e) {}
-                    }
-                };
-
-                console.log('[Firebase] Integração ativa (Auth e-mail/senha)');
-            } catch(e) {
-                console.warn('[Firebase] Erro ao inicializar:', e.message);
-                window.__firebaseAtivo = false;
-            }
-        } else {
-            window.__firebaseAtivo = false;
-            console.info('[Firebase] Não configurado - usando localStorage');
-        }
-    </script>
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-analytics-compat.js"></script>
     <style>
         :root {
             --rosa-claro: #fce4ec;
@@ -115,21 +50,6 @@
             color: var(--cinza-escuro);
             line-height: 1.6;
             min-height: 100vh;
-        }
-
-        /* Busca barcode estoque */
-        .barcode-search-container {
-            transition: box-shadow 0.3s;
-        }
-        .barcode-search-container:focus-within {
-            box-shadow: 0 0 0 3px rgba(244,143,177,0.25);
-        }
-        #resultado-busca-barcode table td,
-        #resultado-busca-barcode table th {
-            border-bottom: 1px solid var(--cinza-medio);
-        }
-        #resultado-busca-barcode table tr:last-child td {
-            border-bottom: none;
         }
 
         /* Tela de Login */
@@ -1236,148 +1156,6 @@
             background: var(--azul-escuro);
             color: white;
         }
-
-        /* ============================================================
-         * SPLASH DE CARREGAMENTO (boot Firebase)
-         * ============================================================ */
-        #boot-splash {
-            position: fixed;
-            inset: 0;
-            z-index: 5000;
-            display: none;
-            align-items: center;
-            justify-content: center;
-            background: linear-gradient(135deg, var(--rosa-escuro), var(--azul-escuro));
-            color: #fff;
-        }
-        .boot-splash-box { text-align: center; }
-        .boot-splash-box i { font-size: 3rem; margin-bottom: 1rem; display: block; }
-        .boot-splash-box p { margin-top: 1rem; font-weight: 300; letter-spacing: .5px; }
-        .boot-splash-spinner {
-            width: 40px; height: 40px;
-            margin: 0 auto;
-            border: 4px solid rgba(255,255,255,0.3);
-            border-top-color: #fff;
-            border-radius: 50%;
-            animation: bootspin 0.8s linear infinite;
-        }
-        @keyframes bootspin { to { transform: rotate(360deg); } }
-
-        /* ============================================================
-         * MODO APLICATIVO NATIVO (MOBILE)
-         * ============================================================ */
-        @media (max-width: 768px) {
-            html, body {
-                -webkit-text-size-adjust: 100%;
-                -webkit-tap-highlight-color: transparent;
-                overscroll-behavior-y: contain;
-            }
-            body { -webkit-overflow-scrolling: touch; }
-
-            /* Header compacto e fixo no topo, respeitando o notch */
-            header {
-                padding: 0.6rem 0;
-                padding-top: calc(0.6rem + env(safe-area-inset-top));
-            }
-            .header-content {
-                flex-direction: row !important;
-                justify-content: space-between !important;
-                text-align: left !important;
-                gap: 0.5rem !important;
-            }
-            .logo { gap: 8px; }
-            .logo i, .logo-img { font-size: 1.6rem; width: 32px; height: 32px; }
-            .logo h1 { font-size: 1.1rem; }
-            .logo span { display: none; }
-            .user-info i { font-size: 1.5rem; }
-            #current-store { display: none; }
-            #current-user { font-size: 0.85rem; max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-            /* Conteúdo principal ocupa toda a largura, sem cantos arredondados de "card" */
-            .container { padding: 0 10px; }
-            .main-content {
-                padding: 1rem;
-                border-radius: 0;
-                margin-bottom: 0;
-                box-shadow: none;
-                min-height: calc(100vh - 200px);
-            }
-
-            /* NAVEGAÇÃO INFERIOR estilo app nativo */
-            nav {
-                position: fixed;
-                bottom: 0;
-                left: 0;
-                right: 0;
-                margin: 0;
-                border-radius: 0;
-                z-index: 2000;
-                box-shadow: 0 -2px 12px rgba(0,0,0,0.15);
-                padding-bottom: env(safe-area-inset-bottom);
-                background: var(--branco);
-            }
-            .nav-menu {
-                flex-direction: row !important;
-                flex-wrap: nowrap;
-                justify-content: space-around;
-                overflow-x: auto;
-                scrollbar-width: none;
-            }
-            .nav-menu::-webkit-scrollbar { display: none; }
-            .nav-item { min-width: 0 !important; flex: 1 0 auto; }
-            .nav-link {
-                display: flex !important;
-                flex-direction: column;
-                align-items: center;
-                justify-content: center;
-                gap: 3px;
-                padding: 0.5rem 0.4rem 0.45rem !important;
-                font-size: 0.62rem;
-                line-height: 1.1;
-                border-bottom: none !important;
-                min-width: 60px;
-            }
-            .nav-link i { font-size: 1.25rem; }
-            .nav-link::after { display: none; }
-            .nav-link.active {
-                color: var(--rosa-escuro);
-                background: linear-gradient(180deg, rgba(244,143,177,0.12), transparent);
-            }
-            .nav-link.active i { transform: translateY(-1px); }
-
-            /* Espaço para a barra inferior não cobrir o conteúdo/rodapé */
-            #main-system { padding-bottom: 70px; }
-            footer {
-                margin-top: 1rem;
-                padding: 1rem 0 calc(1rem + env(safe-area-inset-bottom));
-                font-size: 0.75rem;
-            }
-
-            /* Menu do usuário ocupa largura cheia, mais "app-like" */
-            .user-menu {
-                position: fixed;
-                top: auto;
-                bottom: 70px;
-                left: 10px;
-                right: 10px;
-                min-width: 0;
-                border-radius: 14px;
-            }
-            .user-menu-item { padding: 1rem; font-size: 1rem; }
-
-            /* Botões e campos com alvo de toque maior */
-            .btn { padding: 0.8rem 1rem; font-size: 0.95rem; }
-            input, select, textarea { font-size: 16px; } /* evita zoom automático no iOS */
-
-            /* Tabelas roláveis horizontalmente dentro do app */
-            .tabela-container, .table-responsive { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-        }
-
-        /* Quando instalado como app (standalone), some o aviso de "fechar = backup" visual */
-        @media (display-mode: standalone) {
-            body { user-select: none; -webkit-user-select: none; }
-            input, textarea { user-select: text; -webkit-user-select: text; }
-        }
     </style>
 </head>
 <body>
@@ -1409,8 +1187,7 @@
             </form>
             
             <div class="login-footer">
-                <p><a href="#" id="forgot-link">Esqueci minha senha</a></p>
-                <p class="mt-1">Primeiro acesso? <a href="#" id="register-link">Cadastre-se aqui</a></p>
+                <p>Primeiro acesso? <a href="#" id="register-link">Cadastre-se aqui</a></p>
                 <p class="mt-1"><small>Sistema desenvolvido para gestão de moda feminina</small></p>
             </div>
         </div>
@@ -1793,31 +1570,6 @@
                         </div>
                     </div>
 
-                    <!-- Busca por Código de Barras no Estoque -->
-                    <div class="barcode-search-container mb-2" style="background:#fff5f8;border:1px solid #f48fb1;border-radius:10px;padding:1.2rem;">
-                        <h3 style="color:var(--rosa-escuro);margin-bottom:1rem;"><i class="fas fa-barcode"></i> Busca por Código de Barras</h3>
-                        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;">
-                            <div class="form-group" style="flex:1;min-width:200px;margin-bottom:0;">
-                                <label for="estoque-busca-barcode">Código de Barras</label>
-                                <div class="barcode-input-container">
-                                    <input type="text" id="estoque-busca-barcode" placeholder="Digite ou escaneie o código" 
-                                           style="border-color:var(--rosa-principal);" autocomplete="off">
-                                    <button type="button" class="barcode-btn" id="btn-scan-estoque" title="Simular leitura">
-                                        <i class="fas fa-barcode"></i>
-                                    </button>
-                                </div>
-                            </div>
-                            <div class="form-group" style="margin-bottom:0;">
-                                <label>&nbsp;</label>
-                                <div style="display:flex;gap:8px;">
-                                    <button class="btn" id="btn-buscar-barcode-estoque"><i class="fas fa-search"></i> Buscar</button>
-                                    <button class="btn btn-secondary" id="btn-limpar-busca-barcode"><i class="fas fa-times"></i> Limpar</button>
-                                </div>
-                            </div>
-                        </div>
-                        <div id="resultado-busca-barcode" style="margin-top:1rem;display:none;"></div>
-                    </div>
-
                     <div id="form-ajuste-estoque" class="hidden mb-2">
                         <h3 class="mb-1">Ajuste de Estoque</h3>
                         <form id="ajuste-estoque-form">
@@ -1877,21 +1629,6 @@
                                 <!-- Estoque será inserido aqui via JavaScript -->
                             </tbody>
                         </table>
-                    </div>
-
-                    <!-- Filtro de nome no estoque -->
-                    <div style="margin:1rem 0;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
-                        <div style="position:relative;flex:1;min-width:200px;">
-                            <i class="fas fa-search" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:#aaa;"></i>
-                            <input type="text" id="estoque-filtro-nome" placeholder="Filtrar por nome do produto..." 
-                                   style="width:100%;padding:0.6rem 0.6rem 0.6rem 2rem;border:1px solid var(--cinza-medio);border-radius:6px;font-size:0.9rem;">
-                        </div>
-                        <select id="estoque-filtro-status" style="padding:0.6rem;border:1px solid var(--cinza-medio);border-radius:6px;font-size:0.9rem;">
-                            <option value="">Todos os status</option>
-                            <option value="ok">OK</option>
-                            <option value="baixo">Estoque Baixo</option>
-                            <option value="esgotado">Esgotado</option>
-                        </select>
                     </div>
 
                     <div class="section-title mt-2">
@@ -2370,8 +2107,8 @@
                                 
                                 <div class="form-row">
                                     <div class="form-group">
-                                        <label for="usuario-email">E-mail *</label>
-                                        <input type="email" id="usuario-email" required>
+                                        <label for="usuario-email">E-mail</label>
+                                        <input type="email" id="usuario-email">
                                     </div>
                                     <div class="form-group">
                                         <label for="usuario-perfil">Perfil de Acesso *</label>
@@ -2384,7 +2121,7 @@
                                     </div>
                                 </div>
                                 
-                                <div class="form-row" id="usuario-senha-row">
+                                <div class="form-row">
                                     <div class="form-group">
                                         <label for="usuario-senha">Senha *</label>
                                         <input type="password" id="usuario-senha" required>
@@ -2392,17 +2129,6 @@
                                     <div class="form-group">
                                         <label for="usuario-confirmar-senha">Confirmar Senha *</label>
                                         <input type="password" id="usuario-confirmar-senha" required>
-                                    </div>
-                                </div>
-
-                                <div class="form-row hidden" id="usuario-reset-row">
-                                    <div class="form-group">
-                                        <p style="margin-bottom:.5rem;color:var(--cinza-escuro);font-size:.9rem;">
-                                            <i class="fas fa-info-circle"></i> A senha é gerenciada pelo próprio usuário. Para redefini-la, envie um link por e-mail:
-                                        </p>
-                                        <button type="button" class="btn btn-secondary" id="btn-reset-senha-usuario">
-                                            <i class="fas fa-envelope"></i> Enviar redefinição de senha por e-mail
-                                        </button>
                                     </div>
                                 </div>
                                 
@@ -2612,10 +2338,6 @@
                 logo: ""
             };
 
-            // ID fixo da loja no Firebase: garante que TODOS os dispositivos compartilhem
-            // os mesmos dados (usuários, produtos, etc.), independente do nome da loja.
-            const LOJA_ID = 'elisbella_main';
-
             // Variáveis globais
             let proximoIdCliente = clientes.length > 0 ? Math.max(...clientes.map(c => c.id)) + 1 : 1;
             let proximoIdProduto = produtos.length > 0 ? Math.max(...produtos.map(p => p.id)) + 1 : 1;
@@ -2627,7 +2349,7 @@
             // Estado atual do sistema
             let usuarioLogado = null;
             let itensVendaAtual = [];
-            let formasPagamentoVenda = [{ forma: '', valor: 0 }];
+            let formasPagamentoVenda = [];
             let modoEdicaoCliente = false;
             let modoEdicaoProduto = false;
             let modoEdicaoUsuario = false;
@@ -2667,175 +2389,28 @@
             ];
 
             // Inicialização do sistema
-            document.addEventListener('DOMContentLoaded', async function() {
+            document.addEventListener('DOMContentLoaded', function() {
+                // Verificar se há usuários cadastrados
+                if (usuarios.length === 0) {
+                    // Mostrar modal de cadastro do primeiro usuário
+                    document.getElementById('register-modal').classList.add('active');
+                } else {
+                    // Mostrar tela de login
+                    mostrarTelaLogin();
+                }
+                
                 // Configurar data atual
                 atualizarDataHora();
                 setInterval(atualizarDataHora, 1000); // Atualizar a cada segundo
-
+                
                 document.getElementById('ano-atual').textContent = new Date().getFullYear();
-
-                // Configurar eventos (inclui o submit do login/registro)
+                
+                // Configurar eventos
                 configurarEventos();
-
+                
                 // Aplicar configurações
                 aplicarConfiguracoes();
-
-                // Configurar app mobile (manifest + modo standalone)
-                configurarAppMobile();
-
-                if (window.__firebaseAtivo) {
-                    // Autenticação real do Firebase controla sessão, dados e telas.
-                    mostrarSplashCarregando(true);
-                    iniciarAuthFirebase();
-                } else {
-                    // Modo local (sem Firebase): comportamento offline
-                    if (usuarios.length === 0) {
-                        document.getElementById('register-modal').classList.add('active');
-                    } else {
-                        mostrarTelaLogin();
-                    }
-                }
             });
-
-            // ============================================================
-            // FLUXO DE AUTENTICAÇÃO (Firebase Auth - e-mail/senha)
-            // ============================================================
-            let primeiroAcessoVerificado = false;
-
-            function sistemaAberto() {
-                const ms = document.getElementById('main-system');
-                return ms && ms.style.display === 'block';
-            }
-
-            function encontrarRegistroPorAuth(user) {
-                const email = (user.email || '').toLowerCase();
-                return usuarios.find(u => u.authUid === user.uid) ||
-                       (email ? usuarios.find(u => (u.email || '').toLowerCase() === email) : null);
-            }
-
-            async function iniciarAuthFirebase() {
-                const { onAuthStateChanged, signInAnonymously, signOut } = window.__firebaseModules;
-                const auth = window.__firebaseAuth;
-
-                onAuthStateChanged(auth, async (user) => {
-                    try {
-                        if (!user) {
-                            // Ninguém logado -> entra anônimo para conseguir ler o diretório
-                            // de usuários e os dados (e detectar o primeiro acesso).
-                            try {
-                                await signInAnonymously(auth);
-                            } catch (e) {
-                                console.warn('[Auth] anônimo indisponível:', e.code || e.message);
-                                mostrarSplashCarregando(false);
-                                mostrarTelaLogin();
-                            }
-                            return; // signInAnonymously dispara o listener novamente
-                        }
-
-                        if (user.isAnonymous) {
-                            // Fase pré-login: carrega dados e decide login x primeiro acesso
-                            await carregarDoFirebase();
-                            configurarListenerFirebase();
-                            mostrarSplashCarregando(false);
-                            if (!sistemaAberto()) {
-                                if (usuarios.length === 0 && !primeiroAcessoVerificado) {
-                                    primeiroAcessoVerificado = true;
-                                    document.getElementById('register-modal').classList.add('active');
-                                } else {
-                                    mostrarTelaLogin();
-                                }
-                            }
-                            return;
-                        }
-
-                        // ---- Usuário REAL autenticado ----
-                        await carregarDoFirebase();
-                        configurarListenerFirebase();
-                        const reg = encontrarRegistroPorAuth(user);
-                        if (!reg) {
-                            mostrarSplashCarregando(false);
-                            mostrarTelaLogin();
-                            mostrarMensagemLogin('Esta conta não tem acesso liberado. Contate o administrador.', 'error');
-                            await signOut(auth);
-                            return;
-                        }
-                        if (reg.ativo === false) {
-                            mostrarSplashCarregando(false);
-                            mostrarTelaLogin();
-                            mostrarMensagemLogin('Usuário inativo. Contate o administrador.', 'error');
-                            await signOut(auth);
-                            return;
-                        }
-                        if (!reg.authUid) { reg.authUid = user.uid; salvarDados(); }
-                        usuarioLogado = reg;
-                        mostrarSplashCarregando(false);
-                        mostrarSistemaPrincipal();
-                    } catch (e) {
-                        console.error('[Auth] erro no fluxo:', e);
-                        mostrarSplashCarregando(false);
-                    }
-                });
-            }
-
-            // Splash simples enquanto carrega do Firebase no boot
-            function mostrarSplashCarregando(mostrar) {
-                let splash = document.getElementById('boot-splash');
-                if (mostrar) {
-                    if (!splash) {
-                        splash = document.createElement('div');
-                        splash.id = 'boot-splash';
-                        splash.innerHTML = '<div class="boot-splash-box"><i class="fas fa-tshirt"></i><div class="boot-splash-spinner"></div><p>Conectando à nuvem…</p></div>';
-                        document.body.appendChild(splash);
-                    }
-                    splash.style.display = 'flex';
-                } else if (splash) {
-                    splash.style.display = 'none';
-                }
-            }
-
-            // Configura o app como aplicativo instalável (PWA) e ajusta o modo standalone
-            function configurarAppMobile() {
-                try {
-                    // Ícone do app gerado em SVG (E sobre fundo rosa)
-                    const iconSvg = "data:image/svg+xml," + encodeURIComponent(
-                        "<svg xmlns='http://www.w3.org/2000/svg' width='512' height='512'>" +
-                        "<rect width='512' height='512' rx='110' fill='#ad1457'/>" +
-                        "<text x='50%' y='55%' font-size='270' text-anchor='middle' dominant-baseline='middle' fill='white' font-family='Arial' font-weight='bold'>E</text>" +
-                        "</svg>"
-                    );
-                    const manifest = {
-                        name: configuracoes.nomeLoja + " - Gestão",
-                        short_name: configuracoes.nomeLoja || "ElisBella",
-                        start_url: ".",
-                        display: "standalone",
-                        orientation: "portrait",
-                        background_color: "#ad1457",
-                        theme_color: "#ad1457",
-                        icons: [
-                            { src: iconSvg, sizes: "512x512", type: "image/svg+xml", purpose: "any maskable" }
-                        ]
-                    };
-                    const blob = new Blob([JSON.stringify(manifest)], { type: 'application/json' });
-                    const url = URL.createObjectURL(blob);
-                    let link = document.querySelector('link[rel="manifest"]');
-                    if (!link) {
-                        link = document.createElement('link');
-                        link.rel = 'manifest';
-                        document.head.appendChild(link);
-                    }
-                    link.href = url;
-
-                    // Marca o body quando rodando como app instalado (tela cheia)
-                    const standalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
-                    if (standalone) {
-                        document.body.classList.add('app-standalone');
-                        // Em modo app instalado, não faz sentido o aviso de backup ao "fechar aba"
-                        configuracoes.backupWarning = configuracoes.backupWarning;
-                    }
-                } catch (e) {
-                    console.warn('[App Mobile] Não foi possível configurar PWA:', e.message);
-                }
-            }
 
             // Atualizar data e hora em tempo real
             function atualizarDataHora() {
@@ -2860,21 +2435,6 @@
                     e.preventDefault();
                     document.getElementById('register-modal').classList.add('active');
                 });
-
-                // Esqueci minha senha (envia e-mail de redefinição)
-                const forgotLink = document.getElementById('forgot-link');
-                if (forgotLink) {
-                    forgotLink.addEventListener('click', function(e) {
-                        e.preventDefault();
-                        enviarResetSenhaLogin();
-                    });
-                }
-
-                // Admin: enviar redefinição de senha por e-mail ao editar um usuário
-                const btnResetUsuario = document.getElementById('btn-reset-senha-usuario');
-                if (btnResetUsuario) {
-                    btnResetUsuario.addEventListener('click', enviarResetSenhaUsuario);
-                }
                 
                 // Eventos de registro
                 document.getElementById('register-form').addEventListener('submit', registrarPrimeiroUsuario);
@@ -3101,30 +2661,6 @@
                     e.preventDefault();
                     document.getElementById('backup-modal').classList.add('active');
                 });
-                
-                // Filtros do estoque
-                const filtroNomeEl = document.getElementById('estoque-filtro-nome');
-                const filtroStatusEl = document.getElementById('estoque-filtro-status');
-                if (filtroNomeEl) filtroNomeEl.addEventListener('input', carregarEstoque);
-                if (filtroStatusEl) filtroStatusEl.addEventListener('change', carregarEstoque);
-                
-                // Busca por código de barras no estoque
-                document.getElementById('btn-buscar-barcode-estoque').addEventListener('click', buscarPorCodigoBarrasEstoque);
-                document.getElementById('btn-limpar-busca-barcode').addEventListener('click', limparBuscaBarcode);
-                document.getElementById('btn-scan-estoque').addEventListener('click', function() {
-                    // Scan em venda: tenta usar câmera ou simula
-                    const input = document.getElementById('estoque-busca-barcode');
-                    input.focus();
-                    mostrarMensagem('Aponte o leitor de código de barras para o produto ou digite o código manualmente.', 'info');
-                });
-                
-                // Enter no campo de busca de barcode
-                document.getElementById('estoque-busca-barcode').addEventListener('keypress', function(e) {
-                    if (e.key === 'Enter') {
-                        e.preventDefault();
-                        buscarPorCodigoBarrasEstoque();
-                    }
-                });
             }
 
             // Configurar eventos dos relatórios
@@ -3224,262 +2760,97 @@
                 
                 // Iniciar timer de inatividade
                 iniciarInatividadeTimer();
-                
-                // Indicar status Firebase
-                const fbStatus = document.getElementById('firebase-status');
-                if (fbStatus) {
-                    if (window.__firebaseAtivo) {
-                        fbStatus.textContent = '☁ Firebase';
-                        fbStatus.style.color = '#a5d6a7';
-                    } else {
-                        fbStatus.textContent = '💾 Local';
-                        fbStatus.style.color = '#fff3e0';
-                    }
-                }
-                
-                // Configurar listeners Firebase se ativo
-                if (window.__firebaseAtivo) {
-                    configurarListenerFirebase();
-                }
             }
 
-            async function hashSenha(senha) {
-                const encoder = new TextEncoder();
-                const data = encoder.encode(senha + 'elisbella_salt_2024');
-                const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-                const hashArray = Array.from(new Uint8Array(hashBuffer));
-                return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-            }
-
-            async function fazerLogin(e) {
+            function fazerLogin(e) {
                 e.preventDefault();
-
-                const entrada = document.getElementById('username').value.trim();
-                const password = document.getElementById('password').value;
-
-                if (!entrada || !password) {
+                
+                const username = document.getElementById('username').value.trim();
+                const password = document.getElementById('password').value.trim();
+                
+                // Validar campos
+                if (!username || !password) {
                     mostrarMensagemLogin('Preencha todos os campos.', 'error');
                     return;
                 }
-
-                // ---------- Modo LOCAL (sem Firebase) ----------
-                if (!window.__firebaseAtivo) {
-                    const senhaHash = await hashSenha(password);
-                    const usuario = usuarios.find(u =>
-                        (u.username === entrada || (u.email || '').toLowerCase() === entrada.toLowerCase()) &&
-                        u.ativo && (u.senhaHash === senhaHash || u.senha === password));
-                    if (!usuario) {
-                        mostrarMensagemLogin('Usuário ou senha inválidos.', 'error');
-                        return;
-                    }
-                    if (usuario.senha && !usuario.senhaHash) {
-                        usuario.senhaHash = senhaHash; delete usuario.senha; salvarDados();
-                    }
-                    usuarioLogado = usuario;
-                    sessionStorage.setItem('eb_session', btoa(JSON.stringify({ uid: usuario.id, ts: Date.now() })));
-                    document.getElementById('login-form').reset();
+                
+                // Verificar credenciais
+                const usuario = usuarios.find(u => u.username === username && u.senha === password && u.ativo);
+                
+                if (!usuario) {
+                    mostrarMensagemLogin('Usuário ou senha inválidos.', 'error');
+                    return;
+                }
+                
+                // Login bem sucedido
+                usuarioLogado = usuario;
+                mostrarMensagemLogin('Login realizado com sucesso!', 'success');
+                
+                // Limpar formulário
+                document.getElementById('login-form').reset();
+                
+                // Mostrar sistema principal após breve delay
+                setTimeout(() => {
                     mostrarSistemaPrincipal();
-                    return;
-                }
-
-                // ---------- Modo FIREBASE AUTH ----------
-                const { signInWithEmailAndPassword } = window.__firebaseModules;
-                const auth = window.__firebaseAuth;
-
-                // Permite entrar com nome de usuário: resolve o e-mail no diretório
-                let email = entrada;
-                if (!entrada.includes('@')) {
-                    const u = usuarios.find(x => x.username && x.username.toLowerCase() === entrada.toLowerCase());
-                    if (u && u.email) email = u.email;
-                }
-
-                const btn = document.querySelector('#login-form .login-btn');
-                if (btn) btn.disabled = true;
-                mostrarMensagemLogin('Entrando...', 'success');
-
-                try {
-                    await signInWithEmailAndPassword(auth, email, password);
-                    document.getElementById('login-form').reset();
-                    // onAuthStateChanged abre o sistema
-                } catch (err) {
-                    const code = err.code || '';
-                    if (code === 'auth/user-not-found' || code === 'auth/invalid-credential' || code === 'auth/invalid-login-credentials') {
-                        // Pode ser um usuário ANTIGO ainda não migrado para o Auth
-                        const migrou = await tentarMigrarUsuarioLegado(email, password);
-                        if (migrou) { document.getElementById('login-form').reset(); return; }
-                        mostrarMensagemLogin('E-mail/usuário ou senha inválidos.', 'error');
-                    } else if (code === 'auth/wrong-password') {
-                        mostrarMensagemLogin('Senha incorreta.', 'error');
-                    } else if (code === 'auth/user-disabled') {
-                        mostrarMensagemLogin('Esta conta foi desativada.', 'error');
-                    } else if (code === 'auth/too-many-requests') {
-                        mostrarMensagemLogin('Muitas tentativas. Aguarde alguns minutos.', 'error');
-                    } else if (code === 'auth/network-request-failed') {
-                        mostrarMensagemLogin('Sem conexão com a internet.', 'error');
-                    } else {
-                        mostrarMensagemLogin('Não foi possível entrar: ' + (err.message || code), 'error');
-                    }
-                } finally {
-                    if (btn) btn.disabled = false;
-                }
-            }
-
-            // Migra um usuário criado no modelo antigo (senha em hash) para o Firebase Auth,
-            // na primeira vez que ele faz login com a senha correta.
-            async function tentarMigrarUsuarioLegado(email, password) {
-                try {
-                    const senhaHash = await hashSenha(password);
-                    const reg = usuarios.find(u =>
-                        (u.email || '').toLowerCase() === (email || '').toLowerCase() &&
-                        u.ativo !== false &&
-                        (u.senhaHash === senhaHash || u.senha === password));
-                    if (!reg || !reg.email) return false;
-
-                    const uid = await window.__authCriarUsuario(reg.email, password);
-                    reg.authUid = uid;
-                    delete reg.senhaHash;
-                    delete reg.senha;
-                    salvarDados();
-
-                    const { signInWithEmailAndPassword } = window.__firebaseModules;
-                    await signInWithEmailAndPassword(window.__firebaseAuth, reg.email, password);
-                    return true;
-                } catch (e) {
-                    if ((e.code || '') === 'auth/email-already-in-use') return false;
-                    console.warn('[Migração] falhou:', e.message);
-                    return false;
-                }
-            }
-
-            // Envia e-mail de redefinição de senha (login: "Esqueci minha senha")
-            async function enviarResetSenhaLogin() {
-                if (!window.__firebaseAtivo) {
-                    mostrarMensagemLogin('Recuperação por e-mail disponível apenas com Firebase ativo.', 'error');
-                    return;
-                }
-                const entrada = document.getElementById('username').value.trim();
-                let email = entrada;
-                if (!entrada.includes('@')) {
-                    const u = usuarios.find(x => x.username && x.username.toLowerCase() === entrada.toLowerCase());
-                    if (u && u.email) email = u.email;
-                }
-                if (!email || !email.includes('@')) {
-                    mostrarMensagemLogin('Digite seu e-mail no campo acima e clique novamente.', 'error');
-                    return;
-                }
-                try {
-                    const { sendPasswordResetEmail } = window.__firebaseModules;
-                    await sendPasswordResetEmail(window.__firebaseAuth, email);
-                    mostrarMensagemLogin('Enviamos um link de redefinição para ' + email + '.', 'success');
-                } catch (e) {
-                    mostrarMensagemLogin('Não foi possível enviar: ' + (e.message || e.code), 'error');
-                }
+                }, 500);
             }
 
             function fazerLogout() {
-                pararInatividadeTimer();
-                if (countdownInatividade) {
-                    clearInterval(countdownInatividade);
-                    countdownInatividade = null;
-                }
-                // Limpar gráficos para evitar memory leak
-                [graficoCategoria, graficoEvolucao, graficoPagamento, graficoTopProdutos].forEach(g => {
-                    if (g) { try { g.destroy(); } catch(e) {} }
-                });
-                graficoCategoria = graficoEvolucao = graficoPagamento = graficoTopProdutos = null;
-
                 usuarioLogado = null;
-                sessionStorage.removeItem('eb_session');
-
-                if (window.__firebaseAtivo) {
-                    // signOut dispara onAuthStateChanged -> volta para tela de login
-                    const { signOut } = window.__firebaseModules;
-                    signOut(window.__firebaseAuth).catch(e => console.warn('[Auth] signOut:', e.message));
-                    mostrarTelaLogin();
-                } else {
-                    mostrarTelaLogin();
-                }
+                mostrarTelaLogin();
+                pararInatividadeTimer();
+                mostrarMensagem('Você saiu do sistema.', 'info');
             }
 
-            async function registrarPrimeiroUsuario(e) {
+            function registrarPrimeiroUsuario(e) {
                 e.preventDefault();
-
+                
                 const nome = document.getElementById('register-nome').value.trim();
                 const username = document.getElementById('register-username').value.trim();
                 const email = document.getElementById('register-email').value.trim();
                 const senha = document.getElementById('register-senha').value;
                 const confirmarSenha = document.getElementById('register-confirmar-senha').value;
-
+                
+                // Validar campos
                 if (!nome || !username || !email || !senha || !confirmarSenha) {
                     mostrarMensagemRegistro('Preencha todos os campos.', 'error');
                     return;
                 }
+                
                 if (senha !== confirmarSenha) {
                     mostrarMensagemRegistro('As senhas não coincidem.', 'error');
                     return;
                 }
+                
+                // Verificar se o usuário já existe
                 if (usuarios.some(u => u.username === username)) {
                     mostrarMensagemRegistro('Este nome de usuário já está em uso.', 'error');
                     return;
                 }
-
-                // ---------- Modo LOCAL (sem Firebase) ----------
-                if (!window.__firebaseAtivo) {
-                    const senhaHashReg = await hashSenha(senha);
-                    const novoUsuario = {
-                        id: 1, nome, username, email, senhaHash: senhaHashReg,
-                        perfil: 'admin', ativo: true, dataCriacao: new Date().toISOString()
-                    };
-                    usuarios.push(novoUsuario);
-                    proximoIdUsuario = 2;
-                    salvarDados();
-                    usuarioLogado = novoUsuario;
-                    sessionStorage.setItem('eb_session', btoa(JSON.stringify({ uid: novoUsuario.id, ts: Date.now() })));
-                    document.getElementById('register-modal').classList.remove('active');
-                    mostrarSistemaPrincipal();
-                    mostrarMensagem('Primeiro usuário cadastrado com sucesso!', 'success');
-                    return;
-                }
-
-                // ---------- Modo FIREBASE AUTH ----------
-                if (senha.length < 6) {
-                    mostrarMensagemRegistro('A senha deve ter pelo menos 6 caracteres.', 'error');
-                    return;
-                }
-                const btn = document.querySelector('#register-form button[type="submit"]');
-                if (btn) btn.disabled = true;
-                mostrarMensagemRegistro('Criando administrador...', 'success');
-                try {
-                    const uid = await window.__authCriarUsuario(email, senha);
-                    const novoUsuario = {
-                        id: 1, nome, username, email, authUid: uid,
-                        perfil: 'admin', ativo: true, dataCriacao: new Date().toISOString()
-                    };
-                    usuarios.push(novoUsuario);
-                    proximoIdUsuario = 2;
-                    salvarDados();
-
-                    document.getElementById('register-modal').classList.remove('active');
-                    document.getElementById('register-form').reset();
-
-                    // Entra de verdade (troca a sessão anônima pela do admin)
-                    const { signInWithEmailAndPassword } = window.__firebaseModules;
-                    await signInWithEmailAndPassword(window.__firebaseAuth, email, senha);
-                    // onAuthStateChanged abre o sistema
-                } catch (err) {
-                    const code = err.code || '';
-                    if (code === 'auth/email-already-in-use') {
-                        mostrarMensagemRegistro('Este e-mail já está cadastrado. Use a tela de login.', 'error');
-                    } else if (code === 'auth/weak-password') {
-                        mostrarMensagemRegistro('Senha muito fraca (mínimo 6 caracteres).', 'error');
-                    } else if (code === 'auth/invalid-email') {
-                        mostrarMensagemRegistro('E-mail inválido.', 'error');
-                    } else {
-                        mostrarMensagemRegistro('Erro ao cadastrar: ' + (err.message || code), 'error');
-                    }
-                } finally {
-                    if (btn) btn.disabled = false;
-                }
+                
+                // Criar primeiro usuário (admin)
+                const novoUsuario = {
+                    id: 1,
+                    nome,
+                    username,
+                    email,
+                    senha,
+                    perfil: 'admin',
+                    ativo: true,
+                    dataCriacao: new Date().toISOString()
+                };
+                
+                usuarios.push(novoUsuario);
+                salvarDados();
+                
+                // Fazer login automaticamente
+                usuarioLogado = novoUsuario;
+                
+                // Fechar modal e mostrar sistema
+                document.getElementById('register-modal').classList.remove('active');
+                mostrarSistemaPrincipal();
+                
+                mostrarMensagem('Primeiro usuário cadastrado com sucesso!', 'success');
             }
 
             // Funções de Inatividade
@@ -4148,12 +3519,7 @@
             }
             
             function excluirProduto(id) {
-                const produtoNasVendas = vendas.some(v => v.produtos.some(p => p.produtoId === id));
-                if (produtoNasVendas) {
-                    mostrarMensagem('Este produto está vinculado a vendas registradas. Ele não pode ser excluído, mas pode ser desativado.', 'error');
-                    return;
-                }
-                if (confirm('Tem certeza que deseja excluir este produto? Esta ação não pode ser desfeita.')) {
+                if (confirm('Tem certeza que deseja excluir este produto?')) {
                     // Verificar se o produto tem vendas associadas
                     const produtoTemVendas = vendas.some(v => 
                         v.produtos.some(p => p.produtoId === id)
@@ -4193,24 +3559,17 @@
             }
             
             function simularLeituraCodigoBarrasVenda() {
-                // Modal para busca por código de barras na venda
-                const codigo = prompt('Digite ou escaneie o código de barras do produto:');
-                if (!codigo || !codigo.trim()) return;
+                // Simular leitura de código de barras na venda
+                const codigoBarras = gerarCodigoBarrasAleatorio();
                 
-                const codigoTrim = codigo.trim();
-                const produto = produtos.find(p => 
-                    p.codigoBarras && (p.codigoBarras === codigoTrim || p.codigoBarras.includes(codigoTrim))
-                );
+                // Buscar produto pelo código de barras
+                const produto = produtos.find(p => p.codigoBarras === codigoBarras);
                 
                 if (produto) {
-                    if (produto.quantidade <= 0) {
-                        mostrarMensagem(`Produto "${produto.nome}" encontrado, mas está sem estoque.`, 'warning');
-                        return;
-                    }
                     document.getElementById('venda-produto').value = produto.id;
-                    mostrarMensagem(`✓ Produto encontrado: ${produto.nome} (Estoque: ${produto.quantidade})`, 'success');
+                    mostrarMensagem(`Produto encontrado: ${produto.nome}`, 'success');
                 } else {
-                    mostrarMensagem(`Nenhum produto encontrado com o código: ${codigoTrim}`, 'warning');
+                    mostrarMensagem('Produto não encontrado com este código de barras.', 'warning');
                 }
             }
             
@@ -4223,149 +3582,19 @@
                 return codigo;
             }
 
-            // Funções para Estoque - Busca por Código de Barras
-            function buscarPorCodigoBarrasEstoque() {
-                const codigo = document.getElementById('estoque-busca-barcode').value.trim();
-                const resultDiv = document.getElementById('resultado-busca-barcode');
-                
-                if (!codigo) {
-                    mostrarMensagem('Digite ou escaneie um código de barras para buscar.', 'warning');
-                    return;
-                }
-                
-                // Buscar produto pelo código (busca parcial e exata)
-                const encontrados = produtos.filter(p => 
-                    p.codigoBarras && (
-                        p.codigoBarras === codigo || 
-                        p.codigoBarras.includes(codigo) ||
-                        p.nome.toLowerCase().includes(codigo.toLowerCase())
-                    )
-                );
-                
-                if (encontrados.length === 0) {
-                    resultDiv.style.display = 'block';
-                    resultDiv.innerHTML = `
-                        <div style="background:#fff3e0;border:1px solid #ff9800;border-radius:8px;padding:1rem;">
-                            <p><i class="fas fa-exclamation-triangle" style="color:#ff9800;"></i> 
-                            Nenhum produto encontrado com o código <strong>${escapeHtml(codigo)}</strong>.</p>
-                        </div>`;
-                    return;
-                }
-                
-                let html = `<div style="border:1px solid var(--cinza-medio);border-radius:8px;overflow:hidden;">
-                    <table style="width:100%;border-collapse:collapse;">
-                        <thead>
-                            <tr style="background:var(--rosa-claro);">
-                                <th style="padding:0.7rem;text-align:left;">Produto</th>
-                                <th style="padding:0.7rem;text-align:left;">Categoria</th>
-                                <th style="padding:0.7rem;text-align:center;">Tamanho</th>
-                                <th style="padding:0.7rem;text-align:center;">Cód. Barras</th>
-                                <th style="padding:0.7rem;text-align:center;">Estoque</th>
-                                <th style="padding:0.7rem;text-align:right;">Preço Venda</th>
-                                <th style="padding:0.7rem;text-align:center;">Status</th>
-                            </tr>
-                        </thead>
-                        <tbody>`;
-                
-                encontrados.forEach(p => {
-                    const categoria = categorias.find(c => c.id === p.categoriaId);
-                    const nomeCategoria = categoria ? categoria.nome : 'Sem categoria';
-                    const status = p.quantidade === 0 ? '<span class="status-out">ESGOTADO</span>' :
-                                   p.quantidade < 5 ? '<span class="status-low">BAIXO</span>' :
-                                   '<span class="status-ok">OK</span>';
-                    html += `
-                        <tr style="border-top:1px solid var(--cinza-medio);">
-                            <td style="padding:0.7rem;">${escapeHtml(p.nome)}</td>
-                            <td style="padding:0.7rem;">${escapeHtml(nomeCategoria)}</td>
-                            <td style="padding:0.7rem;text-align:center;">${p.tamanho || '-'}</td>
-                            <td style="padding:0.7rem;text-align:center;font-family:monospace;">${p.codigoBarras || '-'}</td>
-                            <td style="padding:0.7rem;text-align:center;font-weight:bold;">${p.quantidade}</td>
-                            <td style="padding:0.7rem;text-align:right;">${formatarMoeda(p.precoVenda)}</td>
-                            <td style="padding:0.7rem;text-align:center;">${status}</td>
-                        </tr>`;
-                });
-                
-                html += `</tbody></table></div>
-                    <p style="margin-top:0.5rem;font-size:0.85rem;color:#666;">
-                        <i class="fas fa-info-circle"></i> ${encontrados.length} produto(s) encontrado(s) para "${escapeHtml(codigo)}"
-                    </p>`;
-                
-                resultDiv.style.display = 'block';
-                resultDiv.innerHTML = html;
-                
-                // Destaque na tabela principal
-                filtrarEstoquePorCodigo(codigo);
-            }
-            
-            function filtrarEstoquePorCodigo(codigo) {
-                const rows = document.querySelectorAll('#tabela-estoque tbody tr');
-                let found = false;
-                rows.forEach(row => {
-                    const cells = row.querySelectorAll('td');
-                    if (cells.length > 3) {
-                        const codigoCell = cells[3].textContent.trim();
-                        const nomeCell = cells[0].textContent.toLowerCase();
-                        if (codigoCell === codigo || codigoCell.includes(codigo) || nomeCell.includes(codigo.toLowerCase())) {
-                            row.style.background = 'rgba(244,143,177,0.15)';
-                            row.style.outline = '2px solid var(--rosa-principal)';
-                            if (!found) {
-                                row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-                                found = true;
-                            }
-                        } else {
-                            row.style.background = '';
-                            row.style.outline = '';
-                        }
-                    }
-                });
-            }
-            
-            function limparBuscaBarcode() {
-                document.getElementById('estoque-busca-barcode').value = '';
-                document.getElementById('resultado-busca-barcode').style.display = 'none';
-                document.getElementById('resultado-busca-barcode').innerHTML = '';
-                // Remover destaques
-                document.querySelectorAll('#tabela-estoque tbody tr').forEach(row => {
-                    row.style.background = '';
-                    row.style.outline = '';
-                });
-            }
-            
-            function escapeHtml(str) {
-                if (!str) return '';
-                return String(str)
-                    .replace(/&/g, '&amp;')
-                    .replace(/</g, '&lt;')
-                    .replace(/>/g, '&gt;')
-                    .replace(/"/g, '&quot;')
-                    .replace(/'/g, '&#39;');
-            }
-
+            // Funções para Estoque
             function carregarEstoque() {
-                const filtroNome = document.getElementById('estoque-filtro-nome') ? document.getElementById('estoque-filtro-nome').value.toLowerCase() : '';
-                const filtroStatus = document.getElementById('estoque-filtro-status') ? document.getElementById('estoque-filtro-status').value : '';
-                
                 const tbody = document.querySelector('#tabela-estoque tbody');
                 tbody.innerHTML = '';
                 
-                let produtosFiltrados = produtos.filter(p => {
-                    if (filtroNome && !p.nome.toLowerCase().includes(filtroNome)) return false;
-                    if (filtroStatus === 'ok' && p.quantidade < 5) return false;
-                    if (filtroStatus === 'baixo' && (p.quantidade === 0 || p.quantidade >= 5)) return false;
-                    if (filtroStatus === 'esgotado' && p.quantidade !== 0) return false;
-                    return true;
-                });
-                
-                if (produtosFiltrados.length === 0) {
+                if (produtos.length === 0) {
                     const row = document.createElement('tr');
-                    row.innerHTML = `<td colspan="8" class="text-center">Nenhum produto encontrado com os filtros aplicados.</td>`;
+                    row.innerHTML = `<td colspan="8" class="text-center">Nenhum produto em estoque.</td>`;
                     tbody.appendChild(row);
-                    carregarHistoricoEstoque();
-                    atualizarOpcoesProdutosAjuste();
                     return;
                 }
                 
-                produtosFiltrados.forEach(produto => {
+                produtos.forEach(produto => {
                     const categoria = categorias.find(c => c.id === produto.categoriaId);
                     const nomeCategoria = categoria ? categoria.nome : 'Sem categoria';
                     const valorTotal = produto.precoCusto * produto.quantidade;
@@ -4600,7 +3829,7 @@
                 document.getElementById('form-venda').classList.remove('hidden');
                 document.getElementById('venda-form').reset();
                 
-                // Setar data e hora atual no campo de venda
+                // Definir data e hora atual em tempo real
                 const agora = new Date();
                 const agoraISO = new Date(agora.getTime() - (agora.getTimezoneOffset() * 60000)).toISOString().slice(0, 16);
                 document.getElementById('venda-data').value = agoraISO;
@@ -4623,8 +3852,6 @@
                 document.getElementById('venda-form').reset();
                 itensVendaAtual = [];
                 formasPagamentoVenda = [{ forma: '', valor: 0 }];
-                renderizarFormasPagamento();
-                atualizarTabelaItensVenda();
             }
             
             function adicionarItemVenda() {
@@ -4813,12 +4040,6 @@
                 const data = document.getElementById('venda-data').value || new Date().toISOString();
                 const observacoes = document.getElementById('venda-observacoes').value.trim();
                 
-                // Verificar se há itens na venda
-                if (itensVendaAtual.length === 0) {
-                    mostrarMensagem('Adicione pelo menos um produto à venda.', 'error');
-                    return;
-                }
-                
                 // Validar formas de pagamento
                 atualizarTotalPagamentos();
                 const totalVenda = itensVendaAtual.reduce((sum, item) => sum + item.subtotal, 0);
@@ -4847,10 +4068,6 @@
                 // Verificar se há estoque suficiente para todos os produtos
                 for (const item of itensVendaAtual) {
                     const produto = produtos.find(p => p.id === item.produtoId);
-                    if (!produto) {
-                        mostrarMensagem('Produto não encontrado. Recarregue a página.', 'error');
-                        return;
-                    }
                     if (produto.quantidade < item.quantidade) {
                         mostrarMensagem(`Estoque insuficiente para ${produto.nome}. Estoque atual: ${produto.quantidade}`, 'error');
                         return;
@@ -4906,8 +4123,6 @@
                 document.getElementById('venda-form').reset();
                 itensVendaAtual = [];
                 formasPagamentoVenda = [{ forma: '', valor: 0 }];
-                renderizarFormasPagamento();
-                atualizarTabelaItensVenda();
                 
                 // Atualizar dashboard e relatórios
                 carregarDashboard();
@@ -6665,58 +5880,12 @@
                 });
             }
             
-            // Ajusta o formulário de usuário conforme criação x edição e modo Firebase
-            function ajustarFormUsuario(ehEdicao, migrado) {
-                const senhaRow = document.getElementById('usuario-senha-row');
-                const resetRow = document.getElementById('usuario-reset-row');
-                const inputSenha = document.getElementById('usuario-senha');
-                const inputConfirma = document.getElementById('usuario-confirmar-senha');
-                const inputEmail = document.getElementById('usuario-email');
-                const firebase = window.__firebaseAtivo;
-
-                if (ehEdicao && firebase && migrado) {
-                    // Usuário já no Auth: senha/e-mail são gerenciados pelo Auth
-                    senhaRow.classList.add('hidden');
-                    resetRow.classList.remove('hidden');
-                    inputSenha.required = false;
-                    inputConfirma.required = false;
-                    inputEmail.disabled = true;
-                    inputEmail.title = 'O e-mail de acesso não pode ser alterado aqui';
-                } else if (ehEdicao && firebase && !migrado) {
-                    // Usuário ANTIGO ainda sem acesso no Auth: permite informar e-mail + senha
-                    // para liberar o acesso multi-dispositivo.
-                    senhaRow.classList.remove('hidden');
-                    resetRow.classList.add('hidden');
-                    inputSenha.required = false;
-                    inputConfirma.required = false;
-                    inputEmail.disabled = false;
-                    inputEmail.title = 'Informe e-mail e senha para liberar o acesso deste usuário';
-                } else if (ehEdicao && !firebase) {
-                    // Edição local: senha opcional
-                    senhaRow.classList.remove('hidden');
-                    resetRow.classList.add('hidden');
-                    inputSenha.required = false;
-                    inputConfirma.required = false;
-                    inputEmail.disabled = false;
-                } else {
-                    // Novo usuário: senha obrigatória
-                    senhaRow.classList.remove('hidden');
-                    resetRow.classList.add('hidden');
-                    inputSenha.required = true;
-                    inputConfirma.required = true;
-                    inputEmail.disabled = false;
-                    inputEmail.title = '';
-                }
-            }
-
             function mostrarFormUsuario() {
                 document.getElementById('form-usuario').classList.remove('hidden');
                 document.getElementById('form-usuario-titulo').textContent = 'Cadastrar Novo Usuário';
                 document.getElementById('usuario-id').value = '';
                 document.getElementById('usuario-form').reset();
-                document.getElementById('usuario-email').disabled = false;
                 modoEdicaoUsuario = false;
-                ajustarFormUsuario(false);
                 
                 // Rolar para o formulário
                 document.getElementById('form-usuario').scrollIntoView({ behavior: 'smooth' });
@@ -6743,13 +5912,12 @@
                 document.getElementById('usuario-confirmar-senha').value = '';
                 
                 modoEdicaoUsuario = true;
-                ajustarFormUsuario(true, !!usuario.authUid);
                 
                 // Rolar para o formulário
                 document.getElementById('form-usuario').scrollIntoView({ behavior: 'smooth' });
             }
             
-            async function salvarUsuario() {
+            function salvarUsuario() {
                 const id = document.getElementById('usuario-id').value;
                 const nome = document.getElementById('usuario-nome').value.trim();
                 const username = document.getElementById('usuario-username').value.trim();
@@ -6757,160 +5925,72 @@
                 const perfil = document.getElementById('usuario-perfil').value;
                 const senha = document.getElementById('usuario-senha').value;
                 const confirmarSenha = document.getElementById('usuario-confirmar-senha').value;
-
+                
                 if (!nome || !username || !perfil) {
                     mostrarMensagem('Por favor, preencha todos os campos obrigatórios.', 'error');
                     return;
                 }
-
-                const ehEdicao = modoEdicaoUsuario && id;
-
-                // ===================== EDIÇÃO =====================
-                if (ehEdicao) {
+                
+                // Verificar se é um novo usuário ou se a senha está sendo alterada
+                if ((!id && !senha) || (id && senha && senha !== confirmarSenha)) {
+                    mostrarMensagem('As senhas não coincidem.', 'error');
+                    return;
+                }
+                
+                let novoUsuario;
+                
+                if (modoEdicaoUsuario && id) {
+                    // Atualizar usuário existente
                     const index = usuarios.findIndex(u => u.id === parseInt(id));
-                    if (index === -1) return;
-                    const usuarioAtual = usuarios[index];
-
-                    // No modo Firebase, e-mail e senha são gerenciados pelo Auth e não
-                    // podem ser alterados pelo admin a partir do navegador (somente nome,
-                    // usuário e perfil). A senha é redefinida por e-mail.
-                    if (window.__firebaseAtivo) {
-                        if (usuarioAtual.authUid) {
-                            // Já está no Auth: só dados de perfil
-                            usuarios[index] = { ...usuarioAtual, nome, username, perfil };
-                        } else {
-                            // Usuário ANTIGO sem acesso: se informou e-mail + senha, libera no Auth
-                            if (email && senha) {
-                                if (senha.length < 6) { mostrarMensagem('A senha deve ter pelo menos 6 caracteres.', 'error'); return; }
-                                if (senha !== confirmarSenha) { mostrarMensagem('As senhas não coincidem.', 'error'); return; }
-                                if (usuarios.some(u => u.id !== usuarioAtual.id && (u.email || '').toLowerCase() === email.toLowerCase())) {
-                                    mostrarMensagem('Este e-mail já está em uso por outro usuário.', 'error'); return;
-                                }
-                                const btnE = document.getElementById('btn-salvar-usuario');
-                                if (btnE) btnE.disabled = true;
-                                try {
-                                    const uid = await window.__authCriarUsuario(email, senha);
-                                    const atualizado = { ...usuarioAtual, nome, username, email, perfil, authUid: uid };
-                                    delete atualizado.senhaHash; delete atualizado.senha;
-                                    usuarios[index] = atualizado;
-                                    mostrarMensagem('Acesso liberado! O usuário já pode entrar de qualquer aparelho.', 'success');
-                                } catch (err) {
-                                    const c = err.code || '';
-                                    mostrarMensagem(c === 'auth/email-already-in-use' ? 'Este e-mail já possui conta.' :
-                                        'Erro ao liberar acesso: ' + (err.message || c), 'error');
-                                    if (btnE) btnE.disabled = false;
-                                    return;
-                                }
-                                if (btnE) btnE.disabled = false;
-                            } else {
-                                // Sem e-mail/senha: atualiza apenas o cadastro local
-                                usuarios[index] = { ...usuarioAtual, nome, username, email: email || usuarioAtual.email, perfil };
-                            }
-                        }
-                    } else {
-                        let atualizado = { ...usuarioAtual, nome, username, email, perfil };
+                    if (index !== -1) {
+                        const usuarioAtual = usuarios[index];
+                        novoUsuario = {
+                            ...usuarioAtual,
+                            nome,
+                            username,
+                            email,
+                            perfil
+                        };
+                        
+                        // Atualizar senha se fornecida
                         if (senha) {
-                            if (senha !== confirmarSenha) {
-                                mostrarMensagem('As senhas não coincidem.', 'error');
-                                return;
-                            }
-                            atualizado.senhaHash = await hashSenha(senha);
-                            delete atualizado.senha;
+                            novoUsuario.senha = senha;
                         }
-                        usuarios[index] = atualizado;
+                        
+                        usuarios[index] = novoUsuario;
                     }
-
-                    carregarUsuarios();
-                    document.getElementById('form-usuario').classList.add('hidden');
-                    document.getElementById('usuario-form').reset();
-                    salvarDados();
                     mostrarMensagem('Usuário atualizado com sucesso!', 'success');
-                    return;
-                }
-
-                // ===================== NOVO USUÁRIO =====================
-                if (usuarios.some(u => u.username.toLowerCase() === username.toLowerCase())) {
-                    mostrarMensagem('Este nome de usuário já está em uso.', 'error');
-                    return;
-                }
-
-                // ---------- Modo LOCAL ----------
-                if (!window.__firebaseAtivo) {
-                    if (!senha) { mostrarMensagem('Informe uma senha.', 'error'); return; }
-                    if (senha !== confirmarSenha) { mostrarMensagem('As senhas não coincidem.', 'error'); return; }
-                    const senhaHashNovo = await hashSenha(senha);
-                    usuarios.push({
-                        id: proximoIdUsuario++, nome, username, email,
-                        senhaHash: senhaHashNovo, perfil, ativo: true, dataCriacao: new Date().toISOString()
-                    });
-                    carregarUsuarios();
-                    document.getElementById('form-usuario').classList.add('hidden');
-                    document.getElementById('usuario-form').reset();
-                    salvarDados();
-                    mostrarMensagem('Usuário cadastrado com sucesso!', 'success');
-                    return;
-                }
-
-                // ---------- Modo FIREBASE AUTH ----------
-                if (!email) { mostrarMensagem('O e-mail é obrigatório para criar o acesso.', 'error'); return; }
-                if (!senha) { mostrarMensagem('Informe uma senha inicial (mínimo 6 caracteres).', 'error'); return; }
-                if (senha.length < 6) { mostrarMensagem('A senha deve ter pelo menos 6 caracteres.', 'error'); return; }
-                if (senha !== confirmarSenha) { mostrarMensagem('As senhas não coincidem.', 'error'); return; }
-                if (usuarios.some(u => (u.email || '').toLowerCase() === email.toLowerCase())) {
-                    mostrarMensagem('Este e-mail já está cadastrado para outro usuário.', 'error');
-                    return;
-                }
-
-                const btnSalvar = document.getElementById('btn-salvar-usuario');
-                if (btnSalvar) btnSalvar.disabled = true;
-                mostrarMensagem('Criando acesso do usuário...', 'success');
-                try {
-                    // Criação via app secundário: o admin NÃO é deslogado.
-                    const uid = await window.__authCriarUsuario(email, senha);
-                    usuarios.push({
-                        id: proximoIdUsuario++, nome, username, email, authUid: uid,
-                        perfil, ativo: true, dataCriacao: new Date().toISOString()
-                    });
-                    carregarUsuarios();
-                    document.getElementById('form-usuario').classList.add('hidden');
-                    document.getElementById('usuario-form').reset();
-                    salvarDados();
-                    mostrarMensagem('Usuário cadastrado! Ele já pode entrar de qualquer aparelho com o e-mail e a senha.', 'success');
-                } catch (err) {
-                    const code = err.code || '';
-                    if (code === 'auth/email-already-in-use') {
-                        mostrarMensagem('Este e-mail já possui uma conta no sistema.', 'error');
-                    } else if (code === 'auth/weak-password') {
-                        mostrarMensagem('Senha muito fraca (mínimo 6 caracteres).', 'error');
-                    } else if (code === 'auth/invalid-email') {
-                        mostrarMensagem('E-mail inválido.', 'error');
-                    } else {
-                        mostrarMensagem('Erro ao criar usuário: ' + (err.message || code), 'error');
+                } else {
+                    // Verificar se o usuário já existe
+                    if (usuarios.some(u => u.username === username)) {
+                        mostrarMensagem('Este nome de usuário já está em uso.', 'error');
+                        return;
                     }
-                } finally {
-                    if (btnSalvar) btnSalvar.disabled = false;
+                    
+                    // Criar novo usuário
+                    novoUsuario = {
+                        id: proximoIdUsuario++,
+                        nome,
+                        username,
+                        email,
+                        senha,
+                        perfil,
+                        ativo: true,
+                        dataCriacao: new Date().toISOString()
+                    };
+                    usuarios.push(novoUsuario);
+                    mostrarMensagem('Usuário cadastrado com sucesso!', 'success');
                 }
-            }
-
-            // Admin envia e-mail de redefinição de senha para o usuário em edição
-            async function enviarResetSenhaUsuario() {
-                if (!window.__firebaseAtivo) {
-                    mostrarMensagem('Disponível apenas com Firebase ativo.', 'error');
-                    return;
-                }
-                const id = document.getElementById('usuario-id').value;
-                const usuario = usuarios.find(u => u.id === parseInt(id));
-                if (!usuario || !usuario.email) {
-                    mostrarMensagem('Usuário sem e-mail cadastrado.', 'error');
-                    return;
-                }
-                try {
-                    const { sendPasswordResetEmail } = window.__firebaseModules;
-                    await sendPasswordResetEmail(window.__firebaseAuth, usuario.email);
-                    mostrarMensagem('Link de redefinição enviado para ' + usuario.email + '.', 'success');
-                } catch (e) {
-                    mostrarMensagem('Não foi possível enviar: ' + (e.message || e.code), 'error');
-                }
+                
+                // Atualizar a tabela
+                carregarUsuarios();
+                
+                // Esconder o formulário
+                document.getElementById('form-usuario').classList.add('hidden');
+                document.getElementById('usuario-form').reset();
+                
+                // Salvar dados
+                salvarDados();
             }
             
             function toggleUsuario(id) {
@@ -7411,146 +6491,6 @@
                 }, 5000);
             }
             
-            // ================================================================
-            // FIREBASE SYNC - Sincronização em tempo real
-            // ================================================================
-            async function sincronizarComFirebase(colecao, dados) {
-                if (!window.__firebaseAtivo || !window.__firebaseDb) return;
-                try {
-                    const { doc, setDoc } = window.__firebaseModules;
-                    const db = window.__firebaseDb;
-                    const lojaId = LOJA_ID;
-                    await setDoc(doc(db, 'lojas', lojaId, 'dados', colecao), { 
-                        items: dados, 
-                        updatedAt: new Date().toISOString(),
-                        updatedBy: usuarioLogado ? usuarioLogado.id : 'system'
-                    });
-                } catch (e) {
-                    console.warn('[Firebase Sync] Erro ao sincronizar ' + colecao + ':', e.message);
-                }
-            }
-            
-            // Aplica uma coleção carregada do Firebase nas variáveis em memória + localStorage
-            function aplicarColecaoCarregada(col, dados) {
-                switch (col) {
-                    case 'usuarios':
-                        usuarios = dados;
-                        proximoIdUsuario = usuarios.length > 0 ? Math.max(...usuarios.map(u => u.id)) + 1 : 1;
-                        break;
-                    case 'clientes':
-                        clientes = dados;
-                        proximoIdCliente = clientes.length > 0 ? Math.max(...clientes.map(c => c.id)) + 1 : 1;
-                        break;
-                    case 'produtos':
-                        produtos = dados;
-                        proximoIdProduto = produtos.length > 0 ? Math.max(...produtos.map(p => p.id)) + 1 : 1;
-                        break;
-                    case 'vendas':
-                        vendas = dados;
-                        proximoIdVenda = vendas.length > 0 ? Math.max(...vendas.map(v => v.id)) + 1 : 1;
-                        break;
-                    case 'historicoEstoque':
-                        historicoEstoque = dados;
-                        proximoIdHistorico = historicoEstoque.length > 0 ? Math.max(...historicoEstoque.map(h => h.id)) + 1 : 1;
-                        break;
-                    case 'categorias':
-                        categorias = dados;
-                        proximoIdCategoria = categorias.length > 0 ? Math.max(...categorias.map(c => c.id)) + 1 : 1;
-                        break;
-                    case 'configuracoes':
-                        configuracoes = { ...configuracoes, ...dados };
-                        inactivityLimit = configuracoes.inatividade * 60;
-                        break;
-                }
-                localStorage.setItem(col, JSON.stringify(col === 'configuracoes' ? configuracoes : dados));
-            }
-
-            async function carregarDoFirebase() {
-                if (!window.__firebaseAtivo || !window.__firebaseDb) return false;
-                try {
-                    const { doc, getDoc } = window.__firebaseModules;
-                    const db = window.__firebaseDb;
-                    const lojaId = LOJA_ID;
-                    // 'usuarios' incluído para que o login funcione em qualquer dispositivo
-                    const colecoes = ['usuarios', 'clientes', 'produtos', 'vendas', 'historicoEstoque', 'categorias', 'configuracoes'];
-                    let carregou = false;
-
-                    for (const col of colecoes) {
-                        const docRef = doc(db, 'lojas', lojaId, 'dados', col);
-                        const snap = await getDoc(docRef);
-                        if (snap.exists() && snap.data().items !== undefined) {
-                            aplicarColecaoCarregada(col, snap.data().items);
-                            carregou = true;
-                        }
-                    }
-                    return carregou;
-                } catch (e) {
-                    console.warn('[Firebase] Erro ao carregar:', e.message);
-                    return false;
-                }
-            }
-            
-            function configurarListenerFirebase() {
-                if (!window.__firebaseAtivo || !window.__firebaseDb) return;
-                if (window.__listenersConfigurados) return;
-                window.__listenersConfigurados = true;
-                const { collection, onSnapshot } = window.__firebaseModules;
-                const db = window.__firebaseDb;
-                const lojaId = LOJA_ID;
-                
-                // Listener de produtos para sync em tempo real
-                onSnapshot(
-                    { path: `lojas/${lojaId}/dados/produtos` },
-                    (snap) => {
-                        if (snap.exists()) {
-                            const novos = snap.data().items;
-                            if (JSON.stringify(novos) !== JSON.stringify(produtos)) {
-                                produtos = novos;
-                                localStorage.setItem('produtos', JSON.stringify(produtos));
-                                if (document.getElementById('estoque-section') && !document.getElementById('estoque-section').classList.contains('hidden')) {
-                                    carregarEstoque();
-                                }
-                            }
-                        }
-                    },
-                    (err) => console.warn('[Firebase Listener] Produtos:', err.message)
-                );
-
-                // Listener de usuários: mantém a lista de acesso atualizada entre dispositivos
-                onSnapshot(
-                    { path: `lojas/${lojaId}/dados/usuarios` },
-                    (snap) => {
-                        if (snap.exists()) {
-                            const novos = snap.data().items;
-                            if (Array.isArray(novos) && JSON.stringify(novos) !== JSON.stringify(usuarios)) {
-                                usuarios = novos;
-                                proximoIdUsuario = usuarios.length > 0 ? Math.max(...usuarios.map(u => u.id)) + 1 : 1;
-                                localStorage.setItem('usuarios', JSON.stringify(usuarios));
-                                const secUsuarios = document.getElementById('usuarios-section');
-                                if (secUsuarios && !secUsuarios.classList.contains('hidden')) {
-                                    carregarUsuarios();
-                                }
-                            }
-                        }
-                    },
-                    (err) => console.warn('[Firebase Listener] Usuários:', err.message)
-                );
-            }
-            
-            /* ============================================================
-             * FIRESTORE SECURITY RULES (cole no Firebase Console)
-             * ============================================================
-             * rules_version = '2';
-             * service cloud.firestore {
-             *   match /databases/{database}/documents {
-             *     match /lojas/{lojaId}/dados/{colecao} {
-             *       allow read, write: if request.auth != null;
-             *     }
-             *   }
-             * }
-             * ============================================================
-             */
-
             function salvarDados() {
                 localStorage.setItem('usuarios', JSON.stringify(usuarios));
                 localStorage.setItem('clientes', JSON.stringify(clientes));
@@ -7559,18 +6499,26 @@
                 localStorage.setItem('historicoEstoque', JSON.stringify(historicoEstoque));
                 localStorage.setItem('categorias', JSON.stringify(categorias));
                 localStorage.setItem('configuracoes', JSON.stringify(configuracoes));
-                
-                // Sincronizar com Firebase se ativo
-                if (window.__firebaseAtivo) {
-                    sincronizarComFirebase('usuarios', usuarios);
-                    sincronizarComFirebase('clientes', clientes);
-                    sincronizarComFirebase('produtos', produtos);
-                    sincronizarComFirebase('vendas', vendas);
-                    sincronizarComFirebase('historicoEstoque', historicoEstoque);
-                    sincronizarComFirebase('categorias', categorias);
-                    sincronizarComFirebase('configuracoes', configuracoes);
-                }
             }
         </script>
-    </body>
+    
+    <script>
+      // Inicialização do Firebase (após todos os scripts carregarem)
+      const firebaseConfig = {
+        apiKey: "AIzaSyDoF0ztlDL2KDoPjGirSePO8xB7nfnUQjQ",
+        authDomain: "crmcorretorpro.firebaseapp.com",
+        databaseURL: "https://crmcorretorpro-default-rtdb.firebaseio.com",
+        projectId: "crmcorretorpro",
+        storageBucket: "crmcorretorpro.firebasestorage.app",
+        messagingSenderId: "1089541291028",
+        appId: "1:1089541291028:web:8f7173bd0ebfbe7a803b01",
+        measurementId: "G-9DKRMY6RG3"
+      };
+      if (!firebase.apps.length) {
+        firebase.initializeApp(firebaseConfig);
+      }
+      const analytics = firebase.analytics();
+      console.log("Firebase inicializado com sucesso!");
+    </script>
+</body>
 </html>
